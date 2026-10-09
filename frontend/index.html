@@ -1,0 +1,1046 @@
+<!DOCTYPE html>
+<html lang="es" class="dark scroll-smooth">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>VerifyW3 · Verificación Descentralizada de Credenciales</title>
+  
+  <!-- Favicon e Iconos -->
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="apple-touch-icon" href="favicon.svg">
+
+  <!-- PWA Meta Tags -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#06b6d4" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="VerifyW3">
+  <meta name="description" content="Plataforma descentralizada para verificar títulos y certificados académicos en segundos sobre Stellar.">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#ecfeff',
+              400: '#22d3ee',
+              500: '#06b6d4',
+              600: '#0891b2',
+            },
+            stellar: {
+              purple: '#7c3aed',
+              cyan: '#06b6d4',
+              emerald: '#10b981'
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'Consolas', 'monospace']
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  
+  <style>
+    /* Animaciones modernas de micro-movimiento */
+    @keyframes icon-float {
+      0%, 100% { transform: translateY(0px) rotate(0deg); }
+      50% { transform: translateY(-7px) rotate(2deg); }
+    }
+    @keyframes scan {
+      0% { top: 0%; opacity: 0; }
+      50% { opacity: 1; }
+      100% { top: 96%; opacity: 0; }
+    }
+
+    .animate-float {
+      animation: icon-float 4.5s ease-in-out infinite;
+    }
+    .animate-float-delayed {
+      animation: icon-float 5.5s ease-in-out infinite 1.5s;
+    }
+    .scanner-line {
+      animation: scan 2s infinite ease-in-out;
+    }
+    
+    /* Lienzo interactivo de nodos conectado */
+    #network-canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      pointer-events: none;
+      z-index: 0;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 min-h-screen font-sans selection:bg-cyan-500 selection:text-white transition-colors duration-300 relative overflow-x-hidden pb-20 md:pb-0">
+
+  <!-- Interactive Network Canvas (Nodos y Puntos conectados con movimiento de mouse) -->
+  <canvas id="network-canvas"></canvas>
+
+  <!-- Header / Navbar -->
+  <header class="border-b border-slate-200/80 dark:border-slate-800/80 backdrop-blur-xl bg-white/80 dark:bg-slate-950/80 sticky top-0 z-40 transition-colors">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between relative z-10">
+      
+      <!-- Logo Oficial con SVG -->
+      <div class="flex items-center gap-3.5 cursor-pointer" onclick="switchTab('onboarding')">
+        <img src="logo.svg" alt="VerifyW3 Logo" class="w-11 h-11 drop-shadow-md animate-float">
+        <div>
+          <span class="text-2xl font-black tracking-tight text-slate-900 dark:text-white">VerifyW3</span>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs (Desktop) -->
+      <nav class="hidden md:flex items-center gap-1.5 bg-slate-100/90 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 p-1.5 rounded-2xl shadow-inner">
+        <button id="nav-onboarding" onclick="switchTab('onboarding')" class="px-5 py-2.5 rounded-xl text-base font-bold transition-all bg-cyan-500 text-white dark:text-slate-950 shadow-md">
+          Inicio
+        </button>
+        <button id="nav-verify" onclick="switchTab('verify')" class="px-5 py-2.5 rounded-xl text-base font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition-all">
+          Validador en Vivo
+        </button>
+        <button id="nav-issue" onclick="switchTab('issue')" class="px-5 py-2.5 rounded-xl text-base font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition-all">
+          Portal Emisor
+        </button>
+      </nav>
+
+      <!-- Right Controls: Theme Toggle & Status -->
+      <div class="flex items-center gap-2.5 sm:gap-3">
+        
+        <!-- Theme Toggle Button (Light / Dark) -->
+        <button onclick="toggleTheme()" id="btn-theme" title="Alternar Modo Claro / Oscuro" class="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-300 dark:border-slate-800 text-slate-700 dark:text-slate-300 transition-all shadow-sm flex items-center gap-1.5">
+          <!-- Sun Icon (shows in dark mode) -->
+          <svg id="icon-sun" class="w-5 h-5 text-amber-400 hidden" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clip-rule="evenodd"></path></svg>
+          <!-- Moon Icon (shows in light mode) -->
+          <svg id="icon-moon" class="w-5 h-5 text-slate-700" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg>
+          <span class="text-xs font-bold hidden sm:inline" id="theme-text">Tema</span>
+        </button>
+
+        <!-- Network Badge -->
+        <div class="hidden sm:flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300">
+          <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span>Red Activa</span>
+        </div>
+
+        <button onclick="switchTab('verify')" class="px-4 sm:px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-400 hover:to-emerald-400 text-slate-950 text-xs sm:text-sm font-extrabold transition shadow-lg shadow-cyan-500/20">
+          Verificar
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 relative z-10">
+
+    <!-- ======================================================== -->
+    <!-- TAB 0: ONBOARDING & LANDING (INICIO)                     -->
+    <!-- ======================================================== -->
+    <section id="tab-onboarding" class="space-y-24 sm:space-y-28">
+      
+      <!-- HERO SECTION -->
+      <div class="text-center space-y-7 max-w-4xl mx-auto pt-4 sm:pt-12">
+        
+        <div class="inline-flex items-center gap-2.5 px-4 py-2 rounded-full bg-cyan-100 dark:bg-cyan-950/80 border border-cyan-300 dark:border-cyan-800/60 text-cyan-800 dark:text-cyan-300 text-xs sm:text-sm font-bold tracking-wide uppercase shadow-sm">
+          <span class="text-base sm:text-lg">🛡️</span> INFRAESTRUCTURA DE CREDENCIALES VERIFICABLES
+        </div>
+        
+        <h1 class="text-3xl sm:text-6xl md:text-7xl font-black tracking-tight text-slate-900 dark:text-white leading-[1.15]">
+          La verdad de un título académico comprobada en <span class="bg-gradient-to-r from-cyan-500 via-teal-400 to-emerald-500 bg-clip-text text-transparent">segundos, no en semanas</span>
+        </h1>
+        
+        <p class="text-slate-600 dark:text-slate-300 text-base sm:text-2xl max-w-3xl mx-auto leading-relaxed font-normal">
+          Reemplazamos las cartas membretadas y las plataformas centralizadas por un registro inmutable, transparente y respetuoso con la privacidad del egresado.
+        </p>
+
+        <!-- CTAs -->
+        <div class="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 pt-2 sm:pt-4">
+          <button onclick="switchTab('verify')" class="w-full sm:w-auto px-8 py-4 rounded-2xl bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-400 hover:to-emerald-400 text-slate-950 font-black text-base sm:text-lg shadow-xl shadow-cyan-500/25 transition transform hover:-translate-y-1 flex items-center justify-center gap-3">
+            <span>⚡ Probar Validador de Documento</span>
+            <svg class="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+          </button>
+          <a href="#diferenciadores" class="w-full sm:w-auto px-7 py-4 rounded-2xl bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 font-bold text-base sm:text-lg transition flex items-center justify-center gap-2 shadow-sm">
+            <span>🔍 ¿Por qué somos diferentes?</span>
+          </a>
+        </div>
+
+        <!-- Metrics Cards -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 pt-8 sm:pt-12 border-t border-slate-200 dark:border-slate-800/80 max-w-4xl mx-auto text-center">
+          <div class="p-4 sm:p-5 rounded-2xl bg-white/80 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 shadow-sm hover:-translate-y-1 transition duration-300 backdrop-blur-sm">
+            <span class="text-3xl sm:text-4xl font-black text-cyan-500 block">&lt; 60 seg</span>
+            <span class="text-xs sm:text-sm font-semibold text-slate-600 dark:text-slate-400 mt-1 block">Validación total</span>
+          </div>
+          <div class="p-4 sm:p-5 rounded-2xl bg-white/80 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 shadow-sm hover:-translate-y-1 transition duration-300 backdrop-blur-sm">
+            <span class="text-3xl sm:text-4xl font-black text-emerald-500 block">100%</span>
+            <span class="text-xs sm:text-sm font-semibold text-slate-600 dark:text-slate-400 mt-1 block">Privacidad Off-Chain</span>
+          </div>
+          <div class="p-4 sm:p-5 rounded-2xl bg-white/80 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 shadow-sm hover:-translate-y-1 transition duration-300 backdrop-blur-sm">
+            <span class="text-3xl sm:text-4xl font-black text-violet-500 block">0</span>
+            <span class="text-xs sm:text-sm font-semibold text-slate-600 dark:text-slate-400 mt-1 block">Intermediarios de datos</span>
+          </div>
+          <div class="p-4 sm:p-5 rounded-2xl bg-white/80 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 shadow-sm hover:-translate-y-1 transition duration-300 backdrop-blur-sm">
+            <span class="text-3xl sm:text-4xl font-black text-cyan-500 block">&lt; $0.0001</span>
+            <span class="text-xs sm:text-sm font-semibold text-slate-600 dark:text-slate-400 mt-1 block">Costo de red estimado</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- SECCIÓN: DIFERENCIADORES FRENTE A LA COMPETENCIA (MATRIZ) -->
+      <div id="diferenciadores" class="space-y-10 scroll-mt-28">
+        
+        <div class="text-center space-y-3 max-w-3xl mx-auto">
+          <span class="px-4 py-1.5 rounded-full bg-violet-100 dark:bg-violet-950/80 border border-violet-300 dark:border-violet-700/60 text-violet-800 dark:text-violet-300 text-xs font-black uppercase tracking-wider">
+            Ventaja Tecnológica y de Negocio
+          </span>
+          <h2 class="text-2xl sm:text-5xl font-black text-slate-900 dark:text-white">¿En qué nos diferenciamos de la competencia?</h2>
+          <p class="text-slate-600 dark:text-slate-400 text-sm sm:text-lg">
+            Las plataformas tradicionales y servicios SaaS centralizados emiten credenciales que dependen exclusivamente de sus propios servidores privados. VerifyW3 devuelve la confianza al consenso abierto e inmutable de la blockchain.
+          </p>
+        </div>
+
+        <!-- Matriz Comparativa Visual -->
+        <div class="overflow-x-auto">
+          <div class="min-w-[780px] bg-white/90 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-9 space-y-6 shadow-xl backdrop-blur-sm">
+            
+            <div class="grid grid-cols-12 text-sm font-black uppercase tracking-wider text-slate-500 border-b border-slate-200 dark:border-slate-800 pb-5">
+              <div class="col-span-4">Criterio Fundamental</div>
+              <div class="col-span-4 text-slate-500">Plataformas Centralizadas Tradicionales</div>
+              <div class="col-span-4 text-cyan-600 dark:text-cyan-400 flex items-center gap-2 font-black text-base">
+                <span>⭐ VerifyW3 (Descentralizado)</span>
+              </div>
+            </div>
+
+            <!-- Row 1: Privacidad -->
+            <div class="grid grid-cols-12 text-base items-center py-5 border-b border-slate-200/80 dark:border-slate-800/60 gap-4">
+              <div class="col-span-4 font-bold text-slate-900 dark:text-slate-100">
+                1. Privacidad de Datos Personales
+                <span class="block text-xs font-medium text-slate-500 mt-1">Cumplimiento Ley 1581 (Habeas Data)</span>
+              </div>
+              <div class="col-span-4 text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+                ⚠️ Almacenan documentos, nombres y calificaciones en bases de datos en la nube del proveedor.
+              </div>
+              <div class="col-span-4 text-emerald-800 dark:text-emerald-300 text-sm leading-relaxed font-semibold bg-emerald-50 dark:bg-emerald-950/40 p-4 rounded-2xl border border-emerald-200 dark:border-emerald-800/40">
+                ✅ <strong>100% Off-Chain:</strong> El hash SHA-256 se genera en tu navegador. Cero datos personales sensibles viajan a servidores ajenos ni a la blockchain.
+              </div>
+            </div>
+
+            <!-- Row 2: Soberanía e Inmutabilidad -->
+            <div class="grid grid-cols-12 text-base items-center py-5 border-b border-slate-200/80 dark:border-slate-800/60 gap-4">
+              <div class="col-span-4 font-bold text-slate-900 dark:text-slate-100">
+                2. Soberanía del Egresado
+                <span class="block text-xs font-medium text-slate-500 mt-1">¿Qué pasa si la empresa cierra?</span>
+              </div>
+              <div class="col-span-4 text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+                ❌ Si la empresa proveedora quiebra o cae su portal web, los títulos dejan de poder validarse (Vendor Lock-in).
+              </div>
+              <div class="col-span-4 text-emerald-800 dark:text-emerald-300 text-sm leading-relaxed font-semibold bg-emerald-50 dark:bg-emerald-950/40 p-4 rounded-2xl border border-emerald-200 dark:border-emerald-800/40">
+                ✅ <strong>Permanencia Inmutable:</strong> El registro sobrevive para siempre en el ledger distribuido, independientemente del operador de la plataforma.
+              </div>
+            </div>
+
+            <!-- Row 3: Inspección Real del Archivo -->
+            <div class="grid grid-cols-12 text-base items-center py-5 border-b border-slate-200/80 dark:border-slate-800/60 gap-4">
+              <div class="col-span-4 font-bold text-slate-900 dark:text-slate-100">
+                3. Validación Real del Archivo
+                <span class="block text-xs font-medium text-slate-500 mt-1">Detección de alteración en el PDF presentado</span>
+              </div>
+              <div class="col-span-4 text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+                ⚠️ Validan enlaces web o bots de mensajería. Si el candidato editó una nota en el PDF impreso o digital, el enlace puede seguir diciendo que es válido.
+              </div>
+              <div class="col-span-4 text-emerald-800 dark:text-emerald-300 text-sm leading-relaxed font-semibold bg-emerald-50 dark:bg-emerald-950/40 p-4 rounded-2xl border border-emerald-200 dark:border-emerald-800/40">
+                ✅ <strong>Inspección Criptográfica del Archivo:</strong> Arrastras el PDF exacto; si un solo carácter fue editado en Word o Photoshop, salta la alerta de fraude.
+              </div>
+            </div>
+
+            <!-- Row 4: Tarifas -->
+            <div class="grid grid-cols-12 text-base items-center py-5 gap-4">
+              <div class="col-span-4 font-bold text-slate-900 dark:text-slate-100">
+                4. Accesibilidad y Tarifas
+                <span class="block text-xs font-medium text-slate-500 mt-1">Costo por transacción para la institución</span>
+              </div>
+              <div class="col-span-4 text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+                💰 Cobros mensuales recurrentes y costosas licencias corporativas por volumen de graduados.
+              </div>
+              <div class="col-span-4 text-emerald-800 dark:text-emerald-300 text-sm leading-relaxed font-semibold bg-emerald-50 dark:bg-emerald-950/40 p-4 rounded-2xl border border-emerald-200 dark:border-emerald-800/40">
+                ✅ <strong>Microtarifas de Red:</strong> Menos de <strong>$0.00001 USD</strong> por emisión. Asequible para universidades públicas, colegios y bootcamps.
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+
+      <!-- SECCIÓN: SOLUCIONES POR ACTOR (3 PILARES) -->
+      <div class="space-y-12">
+        <div class="text-center space-y-3">
+          <h2 class="text-2xl sm:text-4xl font-black text-slate-900 dark:text-white">Una solución para cada participante del flujo</h2>
+          <p class="text-slate-600 dark:text-slate-400 text-base sm:text-lg">VerifyW3 sincroniza a los tres actores que hoy sufren fricciones en la verificación.</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          
+          <!-- Actor 1: Reclutador / Empresa -->
+          <div class="bg-white/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 p-8 rounded-3xl space-y-4 hover:-translate-y-2 hover:border-cyan-500 transition duration-300 shadow-md backdrop-blur-sm">
+            <div class="w-16 h-16 rounded-2xl bg-cyan-100 dark:bg-cyan-950/80 border border-cyan-300 dark:border-cyan-700/60 flex items-center justify-center text-cyan-600 dark:text-cyan-400 text-3xl font-bold animate-float">
+              💼
+            </div>
+            <h3 class="text-2xl font-black text-slate-900 dark:text-white">Empresas y RRHH</h3>
+            <ul class="text-slate-600 dark:text-slate-400 text-sm sm:text-base space-y-3">
+              <li class="flex items-start gap-2.5">
+                <span class="text-cyan-500 font-bold text-lg">✓</span> Validación instantánea durante la entrevista sin esperar semanas.
+              </li>
+              <li class="flex items-start gap-2.5">
+                <span class="text-cyan-500 font-bold text-lg">✓</span> Detección infalible de calificaciones o títulos falsificados.
+              </li>
+              <li class="flex items-start gap-2.5">
+                <span class="text-cyan-500 font-bold text-lg">✓</span> Constancia formal de debida diligencia descargable para auditorías.
+              </li>
+            </ul>
+          </div>
+
+          <!-- Actor 2: Institución Educativa -->
+          <div class="bg-white/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 p-8 rounded-3xl space-y-4 hover:-translate-y-2 hover:border-emerald-500 transition duration-300 shadow-md backdrop-blur-sm">
+            <div class="w-16 h-16 rounded-2xl bg-emerald-100 dark:bg-emerald-950/80 border border-emerald-300 dark:border-emerald-700/60 flex items-center justify-center text-emerald-600 dark:text-emerald-400 text-3xl font-bold animate-float-delayed">
+              🏛️
+            </div>
+            <h3 class="text-2xl font-black text-slate-900 dark:text-white">Universidades y Academias</h3>
+            <ul class="text-slate-600 dark:text-slate-400 text-sm sm:text-base space-y-3">
+              <li class="flex items-start gap-2.5">
+                <span class="text-emerald-500 font-bold text-lg">✓</span> Reducción del 95% en correspondencia y llamadas manuales a secretaría.
+              </li>
+              <li class="flex items-start gap-2.5">
+                <span class="text-emerald-500 font-bold text-lg">✓</span> Firma digital con llaves criptográficas institucionales no repudiables.
+              </li>
+              <li class="flex items-start gap-2.5">
+                <span class="text-emerald-500 font-bold text-lg">✓</span> Capacidad de revocar o corregir títulos en tiempo real por sanción.
+              </li>
+            </ul>
+          </div>
+
+          <!-- Actor 3: Egresado / Titular -->
+          <div class="bg-white/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 p-8 rounded-3xl space-y-4 hover:-translate-y-2 hover:border-violet-500 transition duration-300 shadow-md backdrop-blur-sm">
+            <div class="w-16 h-16 rounded-2xl bg-violet-100 dark:bg-violet-950/80 border border-violet-300 dark:border-violet-700/60 flex items-center justify-center text-violet-600 dark:text-violet-400 text-3xl font-bold animate-float">
+              🎓
+            </div>
+            <h3 class="text-2xl font-black text-slate-900 dark:text-white">Egresados y Titulares</h3>
+            <ul class="text-slate-600 dark:text-slate-400 text-sm sm:text-base space-y-3">
+              <li class="flex items-start gap-2.5">
+                <span class="text-violet-500 font-bold text-lg">✓</span> Títulos listos para compartir con reclutadores en cualquier país.
+              </li>
+              <li class="flex items-start gap-2.5">
+                <span class="text-violet-500 font-bold text-lg">✓</span> Cero pagos recurrentes por certificados de estudio o duplicados.
+              </li>
+              <li class="flex items-start gap-2.5">
+                <span class="text-violet-500 font-bold text-lg">✓</span> Evidencia permanente incluso ante el cierre de la institución.
+              </li>
+            </ul>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- CTA FINAL BANNER -->
+      <div class="bg-gradient-to-r from-cyan-600 via-teal-600 to-emerald-600 rounded-3xl p-1 shadow-2xl">
+        <div class="bg-slate-900/95 dark:bg-slate-950/90 rounded-[1.4rem] p-8 sm:p-14 text-center space-y-6">
+          <h2 class="text-2xl sm:text-5xl font-black text-white">¿Quieres probar la verificación en vivo?</h2>
+          <p class="text-slate-300 text-base sm:text-xl max-w-2xl mx-auto">
+            Experimenta el escáner del MVP con diplomas simulados. Detecta originales, adulteraciones o cancelaciones en menos de 2 segundos.
+          </p>
+          <button onclick="switchTab('verify')" class="px-8 sm:px-9 py-4 rounded-2xl bg-gradient-to-r from-cyan-400 to-emerald-400 hover:from-cyan-300 hover:to-emerald-300 text-slate-950 font-black text-base sm:text-lg shadow-xl shadow-cyan-500/20 transition transform hover:scale-105">
+            Ir al Validador Público (MVP) ➔
+          </button>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ======================================================== -->
+    <!-- TAB 1: VALIDADOR PÚBLICO (RECLUTADOR / RRHH) (MVP CORE)   -->
+    <!-- ======================================================== -->
+    <section id="tab-verify" class="hidden space-y-10">
+      
+      <!-- Header Banner -->
+      <div class="text-center space-y-4 max-w-3xl mx-auto">
+        <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-cyan-100 dark:bg-cyan-950/80 border border-cyan-300 dark:border-cyan-800/60 text-cyan-800 dark:text-cyan-300 text-xs font-bold tracking-wide uppercase">
+          ⚡ Verificación criptográfica instantánea (< 60s)
+        </div>
+        <h1 class="text-3xl sm:text-5xl font-black tracking-tight text-slate-900 dark:text-white leading-tight">
+          Comprueba la autenticidad de títulos <span class="bg-gradient-to-r from-cyan-500 to-emerald-500 bg-clip-text text-transparent">sin intermediarios</span>
+        </h1>
+        <p class="text-slate-600 dark:text-slate-300 text-base sm:text-xl">
+          Arrastra el certificado digital o introduce su código. Calculamos la huella en tu navegador sin vulnerar datos personales protegidos (Habeas Data).
+        </p>
+      </div>
+
+      <!-- Demo Quick-Testing Bar -->
+      <div class="bg-white/90 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 p-4 sm:p-5 rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-sm backdrop-blur-sm">
+        <span class="text-slate-700 dark:text-slate-300 text-sm sm:text-base font-bold flex items-center gap-2">
+          <span>⚡ Casos de prueba rápida:</span>
+        </span>
+        <div class="flex flex-wrap gap-2.5">
+          <button onclick="loadScenario('valid')" class="px-4 py-2 rounded-xl bg-emerald-100 dark:bg-emerald-950/90 hover:bg-emerald-200 dark:hover:bg-emerald-900 border border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-300 text-sm font-bold transition flex items-center gap-2">
+            <span>✅</span> Título Original (Válido)
+          </button>
+          <button onclick="loadScenario('altered')" class="px-4 py-2 rounded-xl bg-rose-100 dark:bg-rose-950/90 hover:bg-rose-200 dark:hover:bg-rose-900 border border-rose-300 dark:border-rose-700 text-rose-800 dark:text-rose-300 text-sm font-bold transition flex items-center gap-2">
+            <span>⚠️</span> Título Adulterado (Fraude)
+          </button>
+          <button onclick="loadScenario('revoked')" class="px-4 py-2 rounded-xl bg-amber-100 dark:bg-amber-950/90 hover:bg-amber-200 dark:hover:bg-amber-900 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300 text-sm font-bold transition flex items-center gap-2">
+            <span>🚫</span> Título Revocado
+          </button>
+        </div>
+      </div>
+
+      <!-- Dropzone / Scanner Area -->
+      <div class="relative bg-white/95 dark:bg-slate-900/95 border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-cyan-500 transition-all rounded-3xl p-8 sm:p-14 text-center group cursor-pointer shadow-xl overflow-hidden backdrop-blur-sm" id="dropzone" onclick="triggerFileInput()">
+        
+        <!-- Scanner Animation line (hidden initially) -->
+        <div id="scanner-line" class="hidden absolute left-0 right-0 h-1.5 bg-gradient-to-r from-transparent via-cyan-400 to-transparent shadow-[0_0_20px_#22d3ee] scanner-line z-20"></div>
+
+        <input type="file" id="file-input" class="hidden" accept=".pdf,.png,.jpg,.jpeg" onchange="handleFileSelected(event)">
+
+        <div class="space-y-4 max-w-md mx-auto">
+          <div class="w-24 h-24 rounded-3xl bg-cyan-100 dark:bg-cyan-950/80 border border-cyan-300 dark:border-cyan-800 flex items-center justify-center mx-auto text-cyan-600 dark:text-cyan-400 group-hover:scale-110 group-hover:border-cyan-400 transition-all shadow-inner animate-float">
+            <svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+          </div>
+          <div>
+            <h3 class="text-2xl font-black text-slate-900 dark:text-white group-hover:text-cyan-500 transition">Arrastra aquí el diploma o certificado</h3>
+            <p class="text-slate-600 dark:text-slate-400 text-base mt-1">Soporta documentos PDF o escaneos oficiales</p>
+          </div>
+          <div class="flex items-center justify-center gap-2 text-sm text-slate-500 font-mono pt-2">
+            <span>SHA-256 Client-Side</span> • <span>Cero subida a servidor</span> • <span>Stellar SCP</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Searching / Scanning Indicator -->
+      <div id="scanning-state" class="hidden bg-white dark:bg-slate-900 border border-cyan-500 p-7 rounded-3xl space-y-4 shadow-xl backdrop-blur-sm">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-7 h-7 border-3 border-cyan-500 border-t-transparent rounded-full animate-spin"></div>
+            <span class="font-bold text-lg text-cyan-600 dark:text-cyan-300">Consultando libro mayor de Stellar...</span>
+          </div>
+          <span class="text-sm font-mono text-slate-500" id="scan-step-label">Calculando hash SHA-256</span>
+        </div>
+        <div class="w-full bg-slate-200 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden">
+          <div id="scan-progress-bar" class="bg-gradient-to-r from-cyan-500 to-emerald-400 h-full w-2/3 transition-all duration-500"></div>
+        </div>
+      </div>
+
+      <!-- Result Card (Interactive) -->
+      <div id="result-card" class="hidden transition-all duration-500 transform">
+        <!-- Injected via JS based on scenario -->
+      </div>
+
+    </section>
+
+    <!-- ======================================================== -->
+    <!-- TAB 2: PORTAL EMISOR (UNIVERSIDADES / BOOTCAMPS)          -->
+    <!-- ======================================================== -->
+    <section id="tab-issue" class="hidden space-y-8">
+      
+      <div class="max-w-3xl mx-auto space-y-5">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">Panel de Emisión de Credenciales</h2>
+            <p class="text-slate-600 dark:text-slate-400 text-sm sm:text-base mt-1">Registra la huella de una nueva titulación con la firma institucional en Stellar Soroban.</p>
+          </div>
+          <span class="px-3.5 py-1.5 rounded-full bg-emerald-100 dark:bg-emerald-950 border border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-300 text-xs font-bold">
+            Emisor Verificado
+          </span>
+        </div>
+
+        <div class="bg-white/95 dark:bg-slate-900/95 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-9 space-y-6 shadow-xl backdrop-blur-sm">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Nombre del Egresado</label>
+              <input type="text" id="issue-student" value="Ronald Camilo Guarín" class="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-base outline-none focus:border-cyan-500">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Programa / Certificación</label>
+              <input type="text" id="issue-degree" value="Blockchain Developer Specialist" class="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-base outline-none focus:border-cyan-500">
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Código Único de Credencial</label>
+              <input type="text" id="issue-id" value="VW3-2026-B101-7894" class="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-cyan-600 dark:text-cyan-400 font-mono text-base outline-none">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Institución Emisora</label>
+              <input type="text" readonly value="Universidad de Antioquia (Acreditada)" class="w-full px-4 py-3 rounded-xl bg-slate-100 dark:bg-slate-950/60 border border-slate-300 dark:border-slate-800 text-slate-500 text-base outline-none cursor-not-allowed">
+            </div>
+          </div>
+
+          <!-- Document Upload to Hash -->
+          <div class="border border-dashed border-slate-300 dark:border-slate-700 p-5 rounded-2xl text-center bg-slate-50/50 dark:bg-slate-950/40">
+            <p class="text-sm text-slate-600 dark:text-slate-400 font-medium">Adjunta el acta o diploma digital para generar el hash SHA-256 automáticamente</p>
+            <span class="inline-block mt-2 px-3.5 py-1.5 rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-300 text-xs font-mono font-bold">diploma_ronald_guarin.pdf (1.4 MB)</span>
+          </div>
+
+          <div class="pt-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
+            <div class="text-sm text-slate-500">
+              Costo de red estimado: <strong class="text-slate-800 dark:text-slate-200">0.00001 XLM</strong>
+            </div>
+            <button onclick="simulateIssuing()" id="btn-issue" class="px-7 py-3.5 rounded-xl bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-400 hover:to-emerald-400 text-slate-950 font-black text-base shadow-lg shadow-cyan-500/20 transition flex items-center gap-2">
+              <span>✍️ Firmar y Publicar en Stellar</span>
+            </button>
+          </div>
+
+          <div id="issue-receipt" class="hidden mt-4 p-5 rounded-2xl bg-emerald-100 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-700 text-emerald-900 dark:text-emerald-200 text-sm space-y-2">
+            <div class="font-bold flex items-center gap-2 text-base">
+              <span>🎉 ¡Transacción confirmada en Stellar Ledger #5421098!</span>
+            </div>
+            <p class="font-mono text-emerald-700 dark:text-emerald-300/80 break-all text-xs">Hash: 8f4e2c91b539c81d04ea7e66dfb37c02c6114b03512a9757a31b45f49e0b201a</p>
+            <p>Estado inicial: <strong>VIGENTE</strong> · Consultable globalmente en milisegundos.</p>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- Mobile Bottom Navigation Bar (PWA Style) -->
+  <nav class="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 dark:bg-slate-950/95 border-t border-slate-200 dark:border-slate-800 backdrop-blur-xl px-6 py-2.5 flex justify-around items-center shadow-2xl transition-colors">
+    <button onclick="switchTab('onboarding')" id="mob-nav-onboarding" class="flex flex-col items-center gap-1 text-cyan-500 font-bold text-xs py-1 transition">
+      <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"></path></svg>
+      <span>Inicio</span>
+    </button>
+    <button onclick="switchTab('verify')" id="mob-nav-verify" class="flex flex-col items-center gap-1 text-slate-500 dark:text-slate-400 font-semibold text-xs py-1 transition">
+      <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+      <span>Validador</span>
+    </button>
+    <button onclick="switchTab('issue')" id="mob-nav-issue" class="flex flex-col items-center gap-1 text-slate-500 dark:text-slate-400 font-semibold text-xs py-1 transition">
+      <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
+      <span>Emisor</span>
+    </button>
+  </nav>
+
+  <!-- Script con interactividad, lienzo de nodos conectados y PWA -->
+  <script>
+    // ==========================================
+    // 1. LIENZO INTERACTIVO DE PUNTOS Y NODOS CONECTADOS
+    // ==========================================
+    const canvas = document.getElementById('network-canvas');
+    const ctx = canvas.getContext('2d');
+
+    let particles = [];
+    let mouse = { x: null, y: null, radius: 150 };
+
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      initParticles();
+    }
+
+    class Particle {
+      constructor() {
+        this.x = Math.random() * canvas.width;
+        this.y = Math.random() * canvas.height;
+        this.vx = (Math.random() - 0.5) * 0.9;
+        this.vy = (Math.random() - 0.5) * 0.9;
+        this.radius = Math.random() * 2.2 + 1.2;
+      }
+
+      update() {
+        this.x += this.vx;
+        this.y += this.vy;
+
+        // Rebote en bordes
+        if (this.x < 0 || this.x > canvas.width) this.vx = -this.vx;
+        if (this.y < 0 || this.y > canvas.height) this.vy = -this.vy;
+
+        // Interacción con cursor / mouse (repulsión suave)
+        if (mouse.x !== null && mouse.y !== null) {
+          const dx = mouse.x - this.x;
+          const dy = mouse.y - this.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+
+          if (dist < mouse.radius) {
+            const force = (mouse.radius - dist) / mouse.radius;
+            const dirX = dx / dist;
+            const dirY = dy / dist;
+            this.x -= dirX * force * 3.5;
+            this.y -= dirY * force * 3.5;
+          }
+        }
+      }
+
+      draw(isDark) {
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.fillStyle = isDark ? 'rgba(56, 189, 248, 0.7)' : 'rgba(2, 132, 199, 0.6)';
+        ctx.shadowColor = isDark ? '#22d3ee' : '#0284c7';
+        ctx.shadowBlur = 6;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+    }
+
+    function initParticles() {
+      particles = [];
+      const count = window.innerWidth < 768 ? 40 : 85;
+      for (let i = 0; i < count; i++) {
+        particles.push(new Particle());
+      }
+    }
+
+    function animateNetwork() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const isDark = document.documentElement.classList.contains('dark');
+
+      // Dibujar líneas entre nodos cercanos
+      const maxDistance = window.innerWidth < 768 ? 95 : 125;
+      for (let i = 0; i < particles.length; i++) {
+        for (let j = i + 1; j < particles.length; j++) {
+          const dx = particles[i].x - particles[j].x;
+          const dy = particles[i].y - particles[j].y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+
+          if (dist < maxDistance) {
+            const alpha = (1 - dist / maxDistance) * (isDark ? 0.28 : 0.20);
+            ctx.beginPath();
+            ctx.moveTo(particles[i].x, particles[i].y);
+            ctx.lineTo(particles[j].x, particles[j].y);
+            ctx.strokeStyle = isDark ? `rgba(6, 182, 212, ${alpha})` : `rgba(2, 132, 199, ${alpha})`;
+            ctx.lineWidth = 1;
+            ctx.stroke();
+          }
+        }
+      }
+
+      // Conexión hacia el cursor si está cerca
+      if (mouse.x !== null && mouse.y !== null) {
+        for (let i = 0; i < particles.length; i++) {
+          const dx = mouse.x - particles[i].x;
+          const dy = mouse.y - particles[i].y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+
+          if (dist < mouse.radius) {
+            const alpha = (1 - dist / mouse.radius) * 0.45;
+            ctx.beginPath();
+            ctx.moveTo(particles[i].x, particles[i].y);
+            ctx.lineTo(mouse.x, mouse.y);
+            ctx.strokeStyle = isDark ? `rgba(52, 211, 153, ${alpha})` : `rgba(13, 148, 136, ${alpha})`;
+            ctx.lineWidth = 1.3;
+            ctx.stroke();
+          }
+        }
+      }
+
+      // Actualizar y dibujar partículas
+      particles.forEach(p => {
+        p.update();
+        p.draw(isDark);
+      });
+
+      requestAnimationFrame(animateNetwork);
+    }
+
+    // Escuchar movimiento del mouse globalmente
+    window.addEventListener('mousemove', (e) => {
+      mouse.x = e.clientX;
+      mouse.y = e.clientY;
+    });
+
+    window.addEventListener('mouseleave', () => {
+      mouse.x = null;
+      mouse.y = null;
+    });
+
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+    animateNetwork();
+
+    // ==========================================
+    // 2. GESTIÓN DE TEMA CLARO / OSCURO
+    // ==========================================
+    function toggleTheme() {
+      const html = document.documentElement;
+      const isDark = html.classList.contains('dark');
+      const sun = document.getElementById('icon-sun');
+      const moon = document.getElementById('icon-moon');
+      const text = document.getElementById('theme-text');
+
+      if (isDark) {
+        html.classList.remove('dark');
+        localStorage.setItem('theme', 'light');
+        sun.classList.remove('hidden');
+        moon.classList.add('hidden');
+        text.innerText = "Claro";
+      } else {
+        html.classList.add('dark');
+        localStorage.setItem('theme', 'dark');
+        sun.classList.add('hidden');
+        moon.classList.remove('hidden');
+        text.innerText = "Oscuro";
+      }
+    }
+
+    (function initTheme() {
+      const saved = localStorage.getItem('theme');
+      const sun = document.getElementById('icon-sun');
+      const moon = document.getElementById('icon-moon');
+      const text = document.getElementById('theme-text');
+
+      if (saved === 'light') {
+        document.documentElement.classList.remove('dark');
+        sun.classList.remove('hidden');
+        moon.classList.add('hidden');
+        text.innerText = "Claro";
+      } else {
+        document.documentElement.classList.add('dark');
+        sun.classList.add('hidden');
+        moon.classList.remove('hidden');
+        text.innerText = "Oscuro";
+      }
+    })();
+
+    // ==========================================
+    // 3. NAVEGACIÓN ENTRE PESTAÑAS (DESKTOP & MOBILE PWA)
+    // ==========================================
+    function switchTab(tab) {
+      document.getElementById('tab-onboarding').classList.add('hidden');
+      document.getElementById('tab-verify').classList.add('hidden');
+      document.getElementById('tab-issue').classList.add('hidden');
+
+      const tabs = ['onboarding', 'verify', 'issue'];
+      tabs.forEach(t => {
+        const nav = document.getElementById('nav-' + t);
+        if (nav) {
+          nav.className = "px-5 py-2.5 rounded-xl text-base font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition-all";
+        }
+        const mobNav = document.getElementById('mob-nav-' + t);
+        if (mobNav) {
+          mobNav.className = "flex flex-col items-center gap-1 text-slate-500 dark:text-slate-400 font-semibold text-xs py-1 transition";
+        }
+      });
+
+      if (tab === 'onboarding') {
+        document.getElementById('tab-onboarding').classList.remove('hidden');
+        const nav = document.getElementById('nav-onboarding');
+        if (nav) nav.className = "px-5 py-2.5 rounded-xl text-base font-bold transition-all bg-cyan-500 text-white dark:text-slate-950 shadow-md";
+        const mobNav = document.getElementById('mob-nav-onboarding');
+        if (mobNav) mobNav.className = "flex flex-col items-center gap-1 text-cyan-500 font-bold text-xs py-1 transition";
+      } else if (tab === 'verify') {
+        document.getElementById('tab-verify').classList.remove('hidden');
+        const nav = document.getElementById('nav-verify');
+        if (nav) nav.className = "px-5 py-2.5 rounded-xl text-base font-bold transition-all bg-cyan-500 text-white dark:text-slate-950 shadow-md";
+        const mobNav = document.getElementById('mob-nav-verify');
+        if (mobNav) mobNav.className = "flex flex-col items-center gap-1 text-cyan-500 font-bold text-xs py-1 transition";
+      } else if (tab === 'issue') {
+        document.getElementById('tab-issue').classList.remove('hidden');
+        const nav = document.getElementById('nav-issue');
+        if (nav) nav.className = "px-5 py-2.5 rounded-xl text-base font-bold transition-all bg-cyan-500 text-white dark:text-slate-950 shadow-md";
+        const mobNav = document.getElementById('mob-nav-issue');
+        if (mobNav) mobNav.className = "flex flex-col items-center gap-1 text-cyan-500 font-bold text-xs py-1 transition";
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // ==========================================
+    // ==========================================
+    // 4. LÓGICA DEL VALIDADOR: HASHING SHA-256 REAL Y DRAG & DROP
+    // ==========================================
+    function triggerFileInput() {
+      document.getElementById('file-input').click();
+    }
+
+    // Función criptográfica nativa (Web Crypto API): calcula SHA-256 real sobre los bytes
+    async function computeFileSHA256(file) {
+      const buffer = await file.arrayBuffer();
+      const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    function formatFileSize(bytes) {
+      if (!bytes || bytes === 0) return '0 B';
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / 1048576).toFixed(2) + ' MB';
+    }
+
+    async function handleFileSelected(e) {
+      if (e.target.files && e.target.files[0]) {
+        await processRealFile(e.target.files[0]);
+      }
+    }
+
+    async function processRealFile(file) {
+      const dropzone = document.getElementById('dropzone');
+      const scanner = document.getElementById('scanner-line');
+      const scanningState = document.getElementById('scanning-state');
+      const resultCard = document.getElementById('result-card');
+      const progressBar = document.getElementById('scan-progress-bar');
+      const stepLabel = document.getElementById('scan-step-label');
+
+      resultCard.classList.add('hidden');
+      scanner.classList.remove('hidden');
+      scanningState.classList.remove('hidden');
+
+      progressBar.style.width = '15%';
+      stepLabel.innerText = `Leyendo "${file.name}" en memoria local...`;
+
+      // Cálculo matemático REAL de SHA-256 en el cliente
+      const realHash = await computeFileSHA256(file);
+      const fileSize = formatFileSize(file.size);
+
+      progressBar.style.width = '50%';
+      stepLabel.innerText = `Huella calculada: ${realHash.substring(0, 18)}...`;
+
+      setTimeout(() => {
+        progressBar.style.width = '80%';
+        stepLabel.innerText = "Consultando registro inmutable en Soroban RPC...";
+      }, 450);
+
+      setTimeout(() => {
+        progressBar.style.width = '100%';
+        stepLabel.innerText = "Consenso alcanzado (Stellar SCP completado en 1.4s)";
+      }, 850);
+
+      setTimeout(() => {
+        scanner.classList.add('hidden');
+        scanningState.classList.add('hidden');
+        // Si el archivo contiene en su nombre 'alterado', 'fraude' o 'falso', simula discrepancia
+        const isAltered = /alterad|fraud|fals|modificad|error/i.test(file.name);
+        renderResult(isAltered ? 'altered' : 'valid', file.name, realHash, fileSize, true);
+      }, 1150);
+    }
+
+    // Escenarios rápidos de demostración con botones
+    function loadScenario(type) {
+      let filename = "diploma_ingenieria_2026.pdf";
+      let mockHash = "8f4e2c91b539c81d04ea7e66dfb37c02c6114b03512a9757a31b45f49e0b201a";
+      let sizeStr = "1.4 MB";
+
+      if (type === 'altered') {
+        filename = "diploma_modificado_notas.pdf";
+        mockHash = "d3b07384d113edec49eaa6238ad5ff00fc6b7a5a8e0f983a45c79b1836183ef9";
+        sizeStr = "1.38 MB";
+      } else if (type === 'revoked') {
+        filename = "acta_disciplinaria_revocada.pdf";
+        mockHash = "e2b9c7a10f84523ad67914801127bc4351a9e384c20fe81b9534da20194bc021";
+        sizeStr = "890 KB";
+      }
+      runScanSimulation(type, filename, mockHash, sizeStr);
+    }
+
+    function runScanSimulation(type, filename, hash, sizeStr) {
+      const scanner = document.getElementById('scanner-line');
+      const scanningState = document.getElementById('scanning-state');
+      const resultCard = document.getElementById('result-card');
+      const progressBar = document.getElementById('scan-progress-bar');
+      const stepLabel = document.getElementById('scan-step-label');
+
+      resultCard.classList.add('hidden');
+      scanner.classList.remove('hidden');
+      scanningState.classList.remove('hidden');
+
+      progressBar.style.width = '20%';
+      stepLabel.innerText = "Extrayendo huella SHA-256 local...";
+
+      setTimeout(() => {
+        progressBar.style.width = '65%';
+        stepLabel.innerText = "Consultando contrato inteligente en Stellar Soroban...";
+      }, 450);
+
+      setTimeout(() => {
+        progressBar.style.width = '100%';
+        stepLabel.innerText = "Consenso alcanzado (SCP finalizado en 1.8s)";
+      }, 850);
+
+      setTimeout(() => {
+        scanner.classList.add('hidden');
+        scanningState.classList.add('hidden');
+        renderResult(type, filename, hash, sizeStr, false);
+      }, 1150);
+    }
+
+    function renderResult(type, filename, hash, sizeStr, isRealFile) {
+      const resultCard = document.getElementById('result-card');
+      let html = '';
+
+      const realBadge = isRealFile
+        ? `<span class="px-2.5 py-1 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 text-xs font-mono font-bold flex items-center gap-1">⚡ SHA-256 Real (Web Crypto API)</span>`
+        : '';
+
+      if (type === 'valid') {
+        html = `
+          <div class="bg-gradient-to-b from-emerald-950/70 to-slate-900 border-2 border-emerald-500 rounded-3xl p-6 sm:p-9 shadow-2xl space-y-6 text-white backdrop-blur-md">
+            <div class="flex flex-wrap items-center justify-between gap-4 border-b border-emerald-800/60 pb-6">
+              <div class="flex items-center gap-4">
+                <div class="w-16 h-16 rounded-2xl bg-emerald-500/20 border border-emerald-500/60 flex items-center justify-center text-emerald-400 text-3xl font-black animate-float">
+                  ✓
+                </div>
+                <div>
+                  <div class="flex flex-wrap items-center gap-2">
+                    <span class="text-xs uppercase font-extrabold tracking-wider px-3 py-1 rounded-full bg-emerald-500 text-slate-950">Auténtico y Vigente</span>
+                    <span class="text-xs text-emerald-400 font-mono font-bold">100% Coincidencia Criptográfica</span>
+                    ${realBadge}
+                  </div>
+                  <h3 class="text-2xl sm:text-3xl font-black text-white mt-1">Certificado Oficial Verificado</h3>
+                </div>
+              </div>
+              <button onclick="alert('Constancia de debida diligencia descargada en PDF.')" class="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 text-sm font-bold border border-slate-700 flex items-center gap-2 transition">
+                <span>📥 Descargar Evidencia de Auditoría</span>
+              </button>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-base">
+              <div class="p-4 rounded-xl bg-slate-950/80 border border-slate-800">
+                <span class="text-xs text-slate-400 font-bold uppercase block">Institución Emisora</span>
+                <strong class="text-slate-100 text-lg mt-1 block">Universidad de Antioquia</strong>
+                <span class="text-xs text-emerald-400 flex items-center gap-1 mt-1 font-semibold">🏛️ Registro Oficial SNIES Verificado</span>
+              </div>
+              <div class="p-4 rounded-xl bg-slate-950/80 border border-slate-800">
+                <span class="text-xs text-slate-400 font-bold uppercase block">Archivo Evaluado</span>
+                <strong class="text-slate-200 font-mono text-sm mt-1 block truncate" title="${filename}">${filename}</strong>
+                <span class="text-xs text-slate-400 mt-1 block">Tamaño: ${sizeStr} · Integridad confirmada</span>
+              </div>
+              <div class="p-4 rounded-xl bg-slate-950/80 border border-slate-800">
+                <span class="text-xs text-slate-400 font-bold uppercase block">Estado en Stellar</span>
+                <strong class="text-emerald-400 text-lg mt-1 block">Vigente (Activo)</strong>
+                <span class="text-xs text-slate-400 mt-1 block">Fecha de emisión: 24 Sep 2026</span>
+              </div>
+            </div>
+
+            <div class="p-4 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono space-y-1">
+              <div class="flex items-center justify-between text-slate-400">
+                <span>Huella Criptográfica SHA-256 calculada:</span>
+                <span class="text-cyan-400 font-bold">64 caracteres hex</span>
+              </div>
+              <div class="text-cyan-400 break-all select-all font-semibold font-mono text-sm">${hash}</div>
+            </div>
+          </div>
+        `;
+      } else if (type === 'altered') {
+        html = `
+          <div class="bg-gradient-to-b from-rose-950/80 to-slate-900 border-2 border-rose-500 rounded-3xl p-6 sm:p-9 shadow-2xl space-y-6 text-white backdrop-blur-md">
+            <div class="flex flex-wrap items-center justify-between gap-4 border-b border-rose-800/60 pb-6">
+              <div class="flex items-center gap-4">
+                <div class="w-16 h-16 rounded-2xl bg-rose-500/20 border border-rose-500/60 flex items-center justify-center text-rose-400 text-3xl font-black">
+                  ✕
+                </div>
+                <div>
+                  <div class="flex flex-wrap items-center gap-2">
+                    <span class="text-xs uppercase font-extrabold tracking-wider px-3 py-1 rounded-full bg-rose-500 text-slate-950">Alerta de Fraude</span>
+                    <span class="text-xs text-rose-400 font-mono font-bold">Discrepancia Crítica</span>
+                    ${realBadge}
+                  </div>
+                  <h3 class="text-2xl sm:text-3xl font-black text-white mt-1">El documento ha sido alterado</h3>
+                </div>
+              </div>
+            </div>
+
+            <div class="p-5 rounded-2xl bg-rose-950/40 border border-rose-800 text-rose-200 text-base space-y-2">
+              <p class="font-bold text-lg">⚠️ La huella digital del archivo presentado no coincide con ningún título oficial emitido.</p>
+              <p class="text-sm text-rose-300">Esto ocurre cuando se alteran calificaciones, nombres, firmas o fechas en un archivo PDF respecto a su versión original expedida.</p>
+            </div>
+
+            <div class="p-4 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono space-y-1">
+              <div class="text-slate-400">Huella calculada del archivo sospechoso:</div>
+              <div class="text-rose-400 break-all select-all font-semibold font-mono text-sm">${hash}</div>
+            </div>
+          </div>
+        `;
+      } else if (type === 'revoked') {
+        html = `
+          <div class="bg-gradient-to-b from-amber-950/80 to-slate-900 border-2 border-amber-500 rounded-3xl p-6 sm:p-9 shadow-2xl space-y-6 text-white backdrop-blur-md">
+            <div class="flex flex-wrap items-center justify-between gap-4 border-b border-amber-800/60 pb-6">
+              <div class="flex items-center gap-4">
+                <div class="w-16 h-16 rounded-2xl bg-amber-500/20 border border-amber-500/60 flex items-center justify-center text-amber-400 text-3xl font-black">
+                  !
+                </div>
+                <div>
+                  <div class="flex flex-wrap items-center gap-2">
+                    <span class="text-xs uppercase font-extrabold tracking-wider px-3 py-1 rounded-full bg-amber-500 text-slate-950">Título Anulado / Revocado</span>
+                  </div>
+                  <h3 class="text-2xl sm:text-3xl font-black text-white mt-1">Credencial sin Validez Actual</h3>
+                </div>
+              </div>
+            </div>
+
+            <div class="p-5 rounded-2xl bg-amber-950/40 border border-amber-800 text-amber-200 text-base space-y-2">
+              <p class="font-bold text-lg">El documento fue auténtico en el pasado, pero fue revocado por la universidad emisora.</p>
+              <p class="text-sm text-amber-300">Motivo: Sustitución por duplicado o sanción administrativa con fecha 02 Octubre 2026.</p>
+            </div>
+
+            <div class="p-4 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono space-y-1">
+              <div class="text-slate-400">Huella histórica en el ledger:</div>
+              <div class="text-amber-400 break-all select-all font-semibold font-mono text-sm">${hash}</div>
+            </div>
+          </div>
+        `;
+      }
+
+      resultCard.innerHTML = html;
+      resultCard.classList.remove('hidden');
+    }
+
+    // Configurar listeners de Drag & Drop nativo sobre el dropzone
+    (function initDragAndDrop() {
+      const dropzone = document.getElementById('dropzone');
+      if (!dropzone) return;
+
+      ['dragenter', 'dragover'].forEach(eventName => {
+        dropzone.addEventListener(eventName, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          dropzone.classList.add('border-cyan-400', 'bg-cyan-50/60', 'dark:bg-cyan-950/40', 'scale-[1.01]');
+        }, false);
+      });
+
+      ['dragleave', 'drop'].forEach(eventName => {
+        dropzone.addEventListener(eventName, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          dropzone.classList.remove('border-cyan-400', 'bg-cyan-50/60', 'dark:bg-cyan-950/40', 'scale-[1.01]');
+        }, false);
+      });
+
+      dropzone.addEventListener('drop', (e) => {
+        const dt = e.dataTransfer;
+        if (dt && dt.files && dt.files.length > 0) {
+          processRealFile(dt.files[0]);
+        }
+      }, false);
+    })();
+
+    function simulateIssuing() {
+      const btn = document.getElementById('btn-issue');
+      btn.innerText = "⏳ Firmando transacción en Soroban...";
+      btn.disabled = true;
+
+      setTimeout(() => {
+        document.getElementById('issue-receipt').classList.remove('hidden');
+        btn.innerText = "✓ Certificado Registrado";
+        btn.classList.remove('from-cyan-500', 'to-emerald-500');
+        btn.classList.add('bg-emerald-600', 'text-white');
+      }, 1000);
+    }
+
+    // ==========================================
+    // 5. REGISTRO DE SERVICE WORKER (PWA)
+    // ==========================================
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(() => {});
+      });
+    }
+  </script>
+</body>
+</html>

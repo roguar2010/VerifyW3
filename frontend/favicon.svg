@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <defs>
+    <linearGradient id="vw3Grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#06b6d4" />
+      <stop offset="50%" stop-color="#0ea5e9" />
+      <stop offset="100%" stop-color="#10b981" />
+    </linearGradient>
+    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e293b" />
+      <stop offset="100%" stop-color="#0f172a" />
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Hexagonal Shield Base -->
+  <polygon points="50,6 88,24 88,70 50,94 12,70 12,24" fill="url(#shieldGrad)" stroke="url(#vw3Grad)" stroke-width="3.5" stroke-linejoin="round" />
+
+  <!-- Inner Blockchain Node Links -->
+  <line x1="50" y1="20" x2="72" y2="34" stroke="#06b6d4" stroke-width="1.8" stroke-opacity="0.4" stroke-dasharray="2 2" />
+  <line x1="72" y1="34" x2="72" y2="62" stroke="#06b6d4" stroke-width="1.8" stroke-opacity="0.4" stroke-dasharray="2 2" />
+  <line x1="72" y1="62" x2="50" y2="78" stroke="#10b981" stroke-width="1.8" stroke-opacity="0.4" stroke-dasharray="2 2" />
+  <line x1="50" y1="78" x2="28" y2="62" stroke="#10b981" stroke-width="1.8" stroke-opacity="0.4" stroke-dasharray="2 2" />
+  <line x1="28" y1="62" x2="28" y2="34" stroke="#06b6d4" stroke-width="1.8" stroke-opacity="0.4" stroke-dasharray="2 2" />
+  <line x1="28" y1="34" x2="50" y2="20" stroke="#06b6d4" stroke-width="1.8" stroke-opacity="0.4" stroke-dasharray="2 2" />
+
+  <!-- Node Dots -->
+  <circle cx="50" cy="20" r="3.5" fill="#38bdf8" />
+  <circle cx="72" cy="34" r="3.5" fill="#38bdf8" />
+  <circle cx="72" cy="62" r="3.5" fill="#34d399" />
+  <circle cx="50" cy="78" r="3.5" fill="#34d399" />
+  <circle cx="28" cy="62" r="3.5" fill="#34d399" />
+  <circle cx="28" cy="34" r="3.5" fill="#38bdf8" />
+
+  <!-- Central "V" Stylized Checkmark -->
+  <path d="M35 48 L46 60 L66 38" fill="none" stroke="url(#vw3Grad)" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)" />
+</svg>
