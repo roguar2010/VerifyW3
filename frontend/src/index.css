@@ -1,0 +1,16 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@keyframes icon-float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-7px) rotate(2deg); }
+}
+@keyframes scan {
+  0% { top: 0%; opacity: 0; }
+  50% { opacity: 1; }
+  100% { top: 96%; opacity: 0; }
+}
+.animate-float { animation: icon-float 4.5s ease-in-out infinite; }
+.animate-float-delayed { animation: icon-float 5.5s ease-in-out infinite 1.5s; }
+.scanner-line { animation: scan 2s infinite ease-in-out; }

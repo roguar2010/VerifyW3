@@ -1,0 +1,29 @@
+{
+  "generatedBy": "scripts/gen-samples.mjs",
+  "credentials": [
+    {
+      "hash": "61489d819adbe9d096d826d8b6552465c117f2f6c7356784b7393d0340ea3556",
+      "code": "VW3-2026-0001",
+      "issuer": "GDEMOUDEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "issuedAt": "2026-09-24T15:00:00Z",
+      "status": "ACTIVE",
+      "revokedAt": null
+    },
+    {
+      "hash": "25b59ccec9221d67c027570790a3231a87258b2c0d7dd9143187bfc48ee280c1",
+      "code": "VW3-2026-0002",
+      "issuer": "GDEMOUNALAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "issuedAt": "2026-08-10T15:00:00Z",
+      "status": "REVOKED",
+      "revokedAt": "2026-10-02T14:30:00Z"
+    },
+    {
+      "hash": "ac2e99f3f48d4431489c00863bb55cb02616b9f464aad4597016fe8d75093039",
+      "code": "VW3-2026-0003",
+      "issuer": "GFAKEPATITOAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "issuedAt": "2026-09-01T15:00:00Z",
+      "status": "ACTIVE",
+      "revokedAt": null
+    }
+  ]
+}
