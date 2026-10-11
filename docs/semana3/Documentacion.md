@@ -1,7 +1,7 @@
 # Documentación — Semana 3 · Functional Proof (VerifyW3)
 
 **Proyecto:** VerifyW3 — Verificación criptográfica de credenciales académicas en Stellar  
-**Repositorio:** [roguar2010/VerifyW3](https://github.com/roguar2010/VerifyW3)  
+**Repositorio:** [VerifyW3](https://github.com/roguar2010/VerifyW3)  
 **Entrega:** Módulo 3 · Functional Proof  
 
 ---
@@ -17,7 +17,7 @@ La aplicación web está estructurada en cuatro pantallas principales, totalment
 * **Funcionalidad:**
   * Métricas visuales de impacto derivadas del Blueprint: tiempo de respuesta inferior a 60 segundos, 100 % de detección de alteraciones documentales y costo de verificación de \$0 para evaluadores.
   * Selector visual de roles que guía al usuario hacia el **Validador Público** o hacia el **Portal Institucional**.
-  * Diagrama interactivo de los tres pasos del flujo de valor: *Cálculo local de huella $\rightarrow$ Consulta inmutable en Stellar $\rightarrow$ Dictamen de autenticidad*.
+  * Diagrama interactivo de los tres pasos del flujo de valor: *Cálculo local de huella → Consulta inmutable en Stellar → Dictamen de autenticidad*.
 
 ![Pantalla de Inicio](img/01-inicio.png)
 
@@ -30,7 +30,7 @@ La aplicación web está estructurada en cuatro pantallas principales, totalment
     1. *Válido (Verde):* Credencial auténtica, vigente y vinculada a un emisor acreditado en el directorio. Muestra institución emisora, dominio oficial, país, fecha de expedición y huella digital.
     2. *Alerta de Fraude / No Encontrado (Rojo):* Notifica si el documento fue manipulado, alterado en sus notas o nombres, o si nunca fue emitido por una entidad autorizada.
     3. *Revocado (Ámbar):* Informa que la credencial existió legítimamente pero fue anulada por la institución, conservando la fecha de emisión y registrando la fecha exacta de revocación.
-  * **Botonera de pruebas rápidas (Demos del MVP):** Cuatro accesos directos preconfigurados que cargan archivos PDF de muestra reales (`diploma_valido.pdf`, `diploma_adulterado.pdf`, `diploma_revocado.pdf`, `diploma_emisor_desconocido.pdf`) para evaluar los escenarios del Blueprint en un solo clic.
+  * **Panel de pruebas rápidas (Demos del MVP):** Cuatro accesos directos preconfigurados que cargan archivos PDF de muestra reales (`diploma_valido.pdf`, `diploma_adulterado.pdf`, `diploma_revocado.pdf`, `diploma_emisor_desconocido.pdf`) para evaluar los escenarios del Blueprint en un solo clic.
 
 ![Validador Público](img/02-validador.png)
 
@@ -66,7 +66,7 @@ El contrato inteligente de VerifyW3 operará como un registro soberano, inmutabl
 Se descartó utilizar herramientas o servicios preexistentes en Stellar (como emisión de tokens nativos, trustlines o contratos genéricos de custodia) por las siguientes razones:
 
 * **Incompatibilidad con el modelo de privacidad *off-chain*:** Los estándares tradicionales de tokens o registros genéricos exigen asociar cuentas de usuarios o metadatos públicos en servidores de terceros. VerifyW3 requiere una arquitectura *Zero Knowledge* donde ningún dato personal (nombre, documento, calificaciones) viaje a la red ni dependa de bases de datos externas.
-* **Falta de lógica condicional para revocación inmutable:** Los mecanismos estándar de transferencia de activos o claims no contemplan la relación lógica de expedición $\rightarrow$ comprobación $\rightarrow$ revocación conservando la marca de tiempo histórica sin borrar el registro.
+* **Falta de lógica condicional para revocación inmutable:** Los mecanismos estándar de transferencia de activos o claims no contemplan la relación lógica de expedición → comprobación → revocación conservando la marca de tiempo histórica sin borrar el registro.
 * **Sostenibilidad y costos en Soroban:** Un contrato propio optimizado en Rust consume tarifas mínimas de CPU y almacenamiento (*State Archival*), permitiendo a una institución educativa certificar miles de diplomas por fracciones de centavo de dólar, manteniendo autonomía completa sin intermediarios ni comisiones de plataformas SaaS centralizadas.
 
 ---
@@ -77,7 +77,7 @@ Se descartó utilizar herramientas o servicios preexistentes en Stellar (como em
 |---|---|---|
 | **Nicolás González Franco** | [@FRANGONICOLAS](https://github.com/FRANGONICOLAS) | Desarrollador. Arquitectura base del proyecto en React 18 / Vite / Tailwind CSS, diseño del layout con soporte oscuro/claro, pantalla de Inicio (`Home.jsx`), componente de dictamen y veredicto de validación (`ResultCard.jsx`) y Directorio de instituciones (`Institutions.jsx`). |
 | **Ronald Guarín** | [@roguar2010](https://github.com/roguar2010) | Líder Técnico. Implementación completa del Portal del Emisor (`Issue.jsx`), lógica de conexión de billetera institucional con `useWallet()`, flujo de emisión con cálculo de SHA-256 en cliente, gestión de credenciales con revocación inmutable y módulo de prueba de seguridad para control de acceso `NOT_ISSUER`. |
-| **Estefany Carolina Guerra G** | [@Eguerrag](https://github.com/Eguerrag) | Project Manager. Coordinación del entregable, definición y prueba de los 4 escenarios de evaluación del MVP, e implementación de la entrada del validador (`VerifyInput.jsx`) con zona de arrastre (*dropzone*), búsqueda por código y botonera de pruebas rápidas con diplomas de muestra. |
+| **Estefany Carolina Guerra G** | [@Eguerrag](https://github.com/Eguerrag) | Project Manager. Coordinación del entregable, definición y prueba de los 4 escenarios de evaluación del MVP, e implementación de la entrada del validador (`VerifyInput.jsx`) con zona de arrastre (*dropzone*), búsqueda por código y panel de pruebas rápidas con diplomas de muestra. |
 
 ---
 
