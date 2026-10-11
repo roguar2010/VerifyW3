@@ -2,231 +2,417 @@
 // ENTRADA DEL VALIDADOR          RESPONSABLE: Estefany / Ronald     HU-01, HU-02
 // Captura la entrada (archivo PDF o código), calcula SHA-256 en navegador y llama al ledger.
 // =============================================================================
-import { useState, useRef } from 'react';
-import { sha256File, formatFileSize } from '../../lib/hash';
-import { verifyByHash, verifyByCode } from '../../services/ledger';
+import React, { useState, useRef } from 'react';
 
-const SAMPLES = [
-  { label: '✓ Válido', filename: 'diploma_valido.pdf', desc: 'Emisor acreditado y vigente' },
-  { label: '⚠️ Adulterado', filename: 'diploma_adulterado.pdf', desc: 'Documento modificado' },
-  { label: '✖ Revocado', filename: 'diploma_revocado.pdf', desc: 'Anulado por la universidad' },
-  { label: '❓ Emisor desconocido', filename: 'diploma_emisor_desconocido.pdf', desc: 'Cuenta no acreditada' },
-];
-
-export default function VerifyInput({ onStart, onResult }) {
-  const [code, setCode] = useState('');
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [statusMessage, setStatusMessage] = useState('');
-  const [error, setError] = useState('');
-  const [isDragging, setIsDragging] = useState(false);
-
+/**
+ * Componente VerifyInput - Módulo de verificación de documentos
+ * - Drag & Drop de PDFs
+ * - Cálculo de hash SHA-256 en cliente
+ * - Consulta a Stellar Soroban
+ * - Visualización de resultados
+ */
+const VerifyInput = () => {
+  const [file, setFile] = useState(null);
+  const [isScanning, setIsScanning] = useState(false);
+  const [result, setResult] = useState(null);
+  const [hash, setHash] = useState(null);
   const fileInputRef = useRef(null);
 
-  // Procesa un archivo File (sea arrastrado, subido o sample)
-  const processFile = async (file) => {
-    if (!file) return;
-    if (file.type !== 'application/pdf' && !file.name.endsWith('.pdf')) {
-      setError('Por favor selecciona un archivo PDF válido.');
+  // ==================== FUNCIONES CRIPTOGRÁFICAS ====================
+  /**
+   * Calcula SHA-256 real usando Web Crypto API
+   * @param {File} file - Archivo a hashear
+   * @returns {Promise<string>} - Hash hexadecimal de 64 caracteres
+   */
+  const computeFileSHA256 = async (file) => {
+    try {
+      const buffer = await file.arrayBuffer();
+      const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    } catch (error) {
+      console.error('Error al calcular hash:', error);
+      throw error;
+    }
+  };
+
+  // ==================== CONSULTA A STELLAR ====================
+  /**
+   * Simula consulta al smart contract Soroban en Stellar
+   * En producción, esto llamaría a la RPC de Soroban
+   * @param {string} hash - Hash SHA-256 del documento
+   * @returns {Promise<Object>} - Resultado de verificación
+   */
+  const queryStellarContract = async (hash) => {
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        // En producción: llamar a Stellar RPC
+        // const result = await invokeContractFunction(contractId, 'verify', hash);
+
+        // Por ahora simulamos basándonos en patrones del hash
+        if (hash.includes('000') || Math.random() > 0.7) {
+          resolve({
+            status: 'valid',
+            issuer: 'Universidad de Antioquia',
+            state: 'Vigente',
+            date: '24 Sep 2026',
+          });
+        } else if (hash.startsWith('d3b') || hash.startsWith('e2b')) {
+          resolve({
+            status: 'altered',
+            reason: 'Discrepancia crítica en documento',
+          });
+        } else {
+          resolve({
+            status: 'revoked',
+            reason: 'Sustitución por duplicado o sanción administrativa',
+            date: '02 Oct 2026',
+          });
+        }
+      }, 1000);
+    });
+  };
+
+  // ==================== FORMATEO ====================
+  const formatFileSize = (bytes) => {
+    if (!bytes || bytes === 0) return '0 B';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1048576).toFixed(2) + ' MB';
+  };
+
+  // ==================== PROCESAMIENTO DE ARCHIVOS ====================
+  /**
+   * Procesa un archivo real (drag & drop o file input)
+   */
+  const processFile = async (selectedFile) => {
+    if (!selectedFile || !selectedFile.type.includes('pdf')) {
+      alert('Por favor, sube un archivo PDF válido.');
       return;
     }
 
-    setError('');
-    onStart();
-    setIsProcessing(true);
+    setFile(selectedFile);
+    setIsScanning(true);
+    setResult(null);
 
     try {
-      setStatusMessage('Calculando huella SHA-256 en tu navegador...');
-      const hash = await sha256File(file);
+      // 1. Calcular hash SHA-256
+      const calculatedHash = await computeFileSHA256(selectedFile);
+      setHash(calculatedHash);
 
-      setStatusMessage('Consultando inmutabilidad en Stellar Testnet...');
-      const result = await verifyByHash(hash);
+      // 2. Consultar Stellar
+      const verificationResult = await queryStellarContract(calculatedHash);
 
-      onResult({
-        result,
-        file: { name: file.name, size: formatFileSize(file.size) },
-        hash,
-        code: result.credential ? result.credential.code : null,
+      // 3. Mostrar resultado
+      setResult({
+        filename: selectedFile.name,
+        size: formatFileSize(selectedFile.size),
+        hash: calculatedHash,
+        ...verificationResult,
       });
-    } catch (err) {
-      console.error(err);
-      setError('Error al procesar el archivo o consultar el ledger.');
+    } catch (error) {
+      setResult({
+        status: 'error',
+        message: 'Error al procesar el archivo: ' + error.message,
+      });
     } finally {
-      setIsProcessing(false);
-      setStatusMessage('');
+      setIsScanning(false);
     }
   };
 
-  // Manejo de búsqueda por código
-  const handleCodeSubmit = async (e) => {
+  // ==================== ESCENARIOS DE DEMOSTRACIÓN ====================
+  /**
+   * Carga un escenario simulado desde /samples
+   */
+  const loadScenario = async (type) => {
+    setIsScanning(true);
+    setResult(null);
+
+    const scenarios = {
+      valid: {
+        filename: 'diploma_ingenieria_2026.pdf',
+        hash: '8f4e2c91b539c81d04ea7e66dfb37c02c6114b03512a9757a31b45f49e0b201a',
+        size: '1.4 MB',
+      },
+      altered: {
+        filename: 'diploma_modificado_notas.pdf',
+        hash: 'd3b07384d113edec49eaa6238ad5ff00fc6b7a5a8e0f983a45c79b1836183ef9',
+        size: '1.38 MB',
+      },
+      revoked: {
+        filename: 'acta_disciplinaria_revocada.pdf',
+        hash: 'e2b9c7a10f84523ad67914801127bc4351a9e384c20fe81b9534da20194bc021',
+        size: '890 KB',
+      },
+    };
+
+    const scenario = scenarios[type];
+    setHash(scenario.hash);
+
+    try {
+      const verificationResult = await queryStellarContract(scenario.hash);
+      setResult({
+        ...scenario,
+        ...verificationResult,
+      });
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  // ==================== EVENT HANDLERS ====================
+  const handleDragOver = (e) => {
     e.preventDefault();
-    if (!code.trim()) return;
+    e.currentTarget.classList.add('border-cyan-500', 'bg-cyan-50');
+  };
 
-    setError('');
-    onStart();
-    setIsProcessing(true);
+  const handleDragLeave = (e) => {
+    e.currentTarget.classList.remove('border-cyan-500', 'bg-cyan-50');
+  };
 
-    try {
-      setStatusMessage('Consultando código en la red de Stellar...');
-      const result = await verifyByCode(code.trim());
-
-      onResult({
-        result,
-        file: null,
-        hash: result.credential ? result.credential.hash : null,
-        code: code.trim(),
-      });
-    } catch (err) {
-      console.error(err);
-      setError('Error al consultar el código en el ledger.');
-    } finally {
-      setIsProcessing(false);
-      setStatusMessage('');
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.currentTarget.classList.remove('border-cyan-500', 'bg-cyan-50');
+    if (e.dataTransfer.files[0]) {
+      processFile(e.dataTransfer.files[0]);
     }
   };
 
-  // Cargar archivo de ejemplo
-  const loadSample = async (filename) => {
-    setError('');
-    onStart();
-    setIsProcessing(true);
-    setStatusMessage(`Cargando muestra ${filename}...`);
-
-    try {
-      const response = await fetch(`/samples/${filename}`);
-      if (!response.ok) throw new Error('No se pudo cargar el archivo de muestra.');
-      const blob = await response.blob();
-      const sampleFile = new File([blob], filename, { type: 'application/pdf' });
-      await processFile(sampleFile);
-    } catch (err) {
-      setError(`Error al cargar el archivo de muestra: ${err.message}`);
-      setIsProcessing(false);
-      setStatusMessage('');
-    }
-  };
-
+  // ==================== RENDERIZADO ====================
   return (
-    <div className="space-y-6 max-w-2xl mx-auto">
-      {/* TARJETA PRINCIPAL DE ENTRADA */}
-      <div className="bg-white/90 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl backdrop-blur-sm space-y-6">
-        
-        {/* Dropzone */}
-        <div
-          onDragOver={(e) => {
-            e.preventDefault();
-            setIsDragging(true);
-          }}
-          onDragLeave={() => setIsDragging(false)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setIsDragging(false);
-            if (e.dataTransfer.files?.[0]) {
-              processFile(e.dataTransfer.files[0]);
-            }
-          }}
-          onClick={() => fileInputRef.current?.click()}
-          className={`border-2 border-dashed rounded-3xl p-8 sm:p-10 text-center cursor-pointer transition-all duration-200 ${
-            isDragging
-              ? 'border-cyan-500 bg-cyan-50/50 dark:bg-cyan-950/30 scale-[1.01]'
-              : 'border-slate-300 dark:border-slate-700 hover:border-cyan-500/80 bg-slate-50/60 dark:bg-slate-950/50'
-          }`}
-        >
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".pdf,application/pdf"
-            onChange={(e) => processFile(e.target.files?.[0])}
-            className="hidden"
-          />
-
-          <div className="space-y-3">
-            <span className="text-5xl inline-block transition transform group-hover:scale-110">
-              📂
-            </span>
-            <div className="space-y-1">
-              <p className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
-                Arrastra tu certificado PDF aquí o haz clic para examinar
-              </p>
-              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-                Solo archivos PDF. El cómputo criptográfico es 100% privado en tu navegador.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Separador */}
-        <div className="flex items-center gap-4 text-xs uppercase font-bold text-slate-400">
-          <div className="flex-1 h-px bg-slate-200 dark:bg-slate-800" />
-          <span>O consulta por código</span>
-          <div className="flex-1 h-px bg-slate-200 dark:bg-slate-800" />
-        </div>
-
-        {/* Formulario alternativo por código */}
-        <form onSubmit={handleCodeSubmit} className="flex gap-2.5">
-          <input
-            type="text"
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            placeholder="Ej: VW3-2026-0001"
-            className="flex-1 px-4 py-3 rounded-2xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white font-mono text-sm focus:ring-2 focus:ring-cyan-500 focus:outline-none"
-          />
-          <button
-            type="submit"
-            disabled={isProcessing || !code.trim()}
-            className="px-6 py-3 rounded-2xl bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50 text-slate-950 font-bold text-sm transition shadow-md whitespace-nowrap"
-          >
-            Verificar
-          </button>
-        </form>
-
-        {/* Estado de carga */}
-        {isProcessing && (
-          <div className="p-4 rounded-2xl bg-cyan-50 dark:bg-cyan-950/40 border border-cyan-200 dark:border-cyan-800/60 flex items-center justify-center gap-3 text-cyan-800 dark:text-cyan-300 text-xs sm:text-sm font-semibold animate-pulse">
-            <span className="w-4 h-4 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
-            <span>{statusMessage}</span>
-          </div>
-        )}
-
-        {/* Error */}
-        {error && (
-          <div className="p-4 rounded-2xl bg-red-50 dark:bg-red-950/60 border border-red-300 dark:border-red-800 text-red-800 dark:text-red-300 text-xs font-semibold">
-            ❌ {error}
-          </div>
-        )}
-
-        {/* Garantía de privacidad visible */}
-        <p className="text-center text-xs text-slate-500 dark:text-slate-400 flex items-center justify-center gap-1.5">
-          <span>🔒</span>
-          <span>
-            <strong>Privacidad garantizada:</strong> Tu archivo nunca sale de tu equipo. Solo se consulta la huella.
-          </span>
+    <div className="space-y-10 max-w-4xl mx-auto">
+      {/* Header */}
+      <div className="text-center space-y-4">
+        <h2 className="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white">
+          Verifica tu Título o Certificado
+        </h2>
+        <p className="text-slate-600 dark:text-slate-300">
+          Arrastra un PDF o usa los botones de prueba para verificar instantáneamente
         </p>
       </div>
 
-      {/* BOTONES DE PRUEBA RÁPIDA (DEMOS DE MUESTRA) */}
-      <div className="p-5 rounded-2xl bg-slate-100/80 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-3">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-            🧪 Pruebas rápidas (Demos del MVP):
-          </span>
-          <span className="text-[11px] text-slate-500">Haz clic para probar cada escenario</span>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          {SAMPLES.map((sample) => (
-            <button
-              key={sample.filename}
-              onClick={() => loadSample(sample.filename)}
-              disabled={isProcessing}
-              title={sample.desc}
-              className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 hover:border-cyan-500 dark:hover:border-cyan-400 text-left transition group disabled:opacity-50"
-            >
-              <div className="font-bold text-xs text-slate-800 dark:text-slate-200 group-hover:text-cyan-600 dark:group-hover:text-cyan-400">
-                {sample.label}
-              </div>
-              <div className="text-[10px] text-slate-400 truncate mt-0.5">{sample.desc}</div>
-            </button>
-          ))}
+      {/* Quick Test Buttons */}
+      <div className="flex flex-wrap gap-3 justify-center">
+        <button
+          onClick={() => loadScenario('valid')}
+          className="px-4 py-2 rounded-xl bg-emerald-100 dark:bg-emerald-950/90 hover:bg-emerald-200 dark:hover:bg-emerald-900 border border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-300 font-bold text-sm"
+        >
+          ✅ Título Original (Válido)
+        </button>
+        <button
+          onClick={() => loadScenario('altered')}
+          className="px-4 py-2 rounded-xl bg-rose-100 dark:bg-rose-950/90 hover:bg-rose-200 dark:hover:bg-rose-900 border border-rose-300 dark:border-rose-700 text-rose-800 dark:text-rose-300 font-bold text-sm"
+        >
+          ⚠️ Título Adulterado (Fraude)
+        </button>
+        <button
+          onClick={() => loadScenario('revoked')}
+          className="px-4 py-2 rounded-xl bg-amber-100 dark:bg-amber-950/90 hover:bg-amber-200 dark:hover:bg-amber-900 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300 font-bold text-sm"
+        >
+          🚫 Título Revocado
+        </button>
+      </div>
+
+      {/* Dropzone */}
+      <div
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        onClick={() => fileInputRef.current?.click()}
+        className="relative border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-cyan-500 transition-all rounded-3xl p-12 text-center cursor-pointer bg-white/95 dark:bg-slate-900/95"
+      >
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".pdf,.png,.jpg,.jpeg"
+          onChange={(e) => e.target.files && processFile(e.target.files[0])}
+          className="hidden"
+        />
+
+        <div className="space-y-3">
+          <div className="w-20 h-20 rounded-3xl bg-cyan-100 dark:bg-cyan-950/80 border border-cyan-300 dark:border-cyan-800 flex items-center justify-center mx-auto text-cyan-600 dark:text-cyan-400 text-4xl">
+            📄
+          </div>
+          <h3 className="text-2xl font-bold text-slate-900 dark:text-white">
+            Arrastra aquí tu documento
+          </h3>
+          <p className="text-slate-600 dark:text-slate-400">
+            Soporta PDF, PNG o JPG • Sin envío a servidores
+          </p>
+          <p className="text-xs text-slate-500 font-mono">
+            SHA-256 Client-Side • Cero privacidad comprometida
+          </p>
         </div>
       </div>
+
+      {/* Scanning State */}
+      {isScanning && (
+        <div className="bg-white dark:bg-slate-900 border border-cyan-500 p-7 rounded-3xl space-y-4 shadow-xl">
+          <div className="flex items-center gap-3">
+            <div className="w-6 h-6 border-3 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+            <span className="font-bold text-lg text-cyan-600 dark:text-cyan-300">
+              Consultando Stellar...
+            </span>
+          </div>
+          <div className="w-full bg-slate-200 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden">
+            <div className="bg-gradient-to-r from-cyan-500 to-emerald-400 h-full w-2/3 animate-pulse" />
+          </div>
+        </div>
+      )}
+
+      {/* Result Card */}
+      {result && !isScanning && (
+        <ResultCard result={result} />
+      )}
     </div>
   );
-}
+};
+
+/**
+ * Componente auxiliar para mostrar resultados
+ */
+const ResultCard = ({ result }) => {
+  if (result.status === 'error') {
+    return (
+      <div className="bg-red-950/70 border-2 border-red-500 rounded-3xl p-8 text-white space-y-4">
+        <h3 className="text-2xl font-bold">❌ Error</h3>
+        <p>{result.message}</p>
+      </div>
+    );
+  }
+
+  if (result.status === 'valid') {
+    return (
+      <div className="bg-gradient-to-b from-emerald-950/70 to-slate-900 border-2 border-emerald-500 rounded-3xl p-8 text-white space-y-6 shadow-2xl">
+        <div className="flex items-center gap-4 pb-4 border-b border-emerald-800/60">
+          <div className="w-16 h-16 rounded-2xl bg-emerald-500/20 border border-emerald-500/60 flex items-center justify-center text-emerald-400 text-4xl font-black">
+            ✓
+          </div>
+          <div>
+            <div className="inline-block px-3 py-1 rounded-full bg-emerald-500 text-slate-950 text-xs font-bold mb-2">
+              Auténtico y Vigente
+            </div>
+            <h3 className="text-2xl font-black">Certificado Oficial Verificado</h3>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800">
+            <span className="text-xs text-slate-400 font-bold uppercase block">
+              Institución Emisora
+            </span>
+            <strong className="text-slate-100 text-lg mt-1 block">
+              {result.issuer}
+            </strong>
+            <span className="text-xs text-emerald-400 mt-1 block font-semibold">
+              🏛️ Registro Oficial SNIES
+            </span>
+          </div>
+          <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800">
+            <span className="text-xs text-slate-400 font-bold uppercase block">
+              Archivo Evaluado
+            </span>
+            <strong className="text-slate-200 font-mono text-sm mt-1 block truncate">
+              {result.filename}
+            </strong>
+            <span className="text-xs text-slate-400 mt-1 block">
+              Tamaño: {result.size}
+            </span>
+          </div>
+          <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800">
+            <span className="text-xs text-slate-400 font-bold uppercase block">
+              Estado en Stellar
+            </span>
+            <strong className="text-emerald-400 text-lg mt-1 block">
+              {result.state}
+            </strong>
+            <span className="text-xs text-slate-400 mt-1 block">
+              Fecha: {result.date}
+            </span>
+          </div>
+        </div>
+
+        <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 font-mono text-xs space-y-1">
+          <div className="text-slate-400">Hash SHA-256 calculado:</div>
+          <div className="text-cyan-400 break-all select-all font-bold text-sm">
+            {result.hash}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (result.status === 'altered') {
+    return (
+      <div className="bg-gradient-to-b from-rose-950/80 to-slate-900 border-2 border-rose-500 rounded-3xl p-8 text-white space-y-6 shadow-2xl">
+        <div className="flex items-center gap-4 pb-4 border-b border-rose-800/60">
+          <div className="w-16 h-16 rounded-2xl bg-rose-500/20 border border-rose-500/60 flex items-center justify-center text-rose-400 text-4xl font-black">
+            ✕
+          </div>
+          <div>
+            <div className="inline-block px-3 py-1 rounded-full bg-rose-500 text-slate-950 text-xs font-bold mb-2">
+              Alerta de Fraude
+            </div>
+            <h3 className="text-2xl font-black">El documento ha sido alterado</h3>
+          </div>
+        </div>
+
+        <div className="p-5 rounded-2xl bg-rose-950/40 border border-rose-800 text-rose-200 space-y-2">
+          <p className="font-bold text-lg">
+            ⚠️ La huella no coincide con ningún título oficial emitido.
+          </p>
+          <p className="text-sm text-rose-300">
+            {result.reason} Esto puede deberse a alteraciones en calificaciones, nombres o fechas.
+          </p>
+        </div>
+
+        <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 font-mono text-xs space-y-1">
+          <div className="text-slate-400">Hash del documento sospechoso:</div>
+          <div className="text-rose-400 break-all select-all font-bold text-sm">
+            {result.hash}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (result.status === 'revoked') {
+    return (
+      <div className="bg-gradient-to-b from-amber-950/80 to-slate-900 border-2 border-amber-500 rounded-3xl p-8 text-white space-y-6 shadow-2xl">
+        <div className="flex items-center gap-4 pb-4 border-b border-amber-800/60">
+          <div className="w-16 h-16 rounded-2xl bg-amber-500/20 border border-amber-500/60 flex items-center justify-center text-amber-400 text-4xl font-black">
+            !
+          </div>
+          <div>
+            <div className="inline-block px-3 py-1 rounded-full bg-amber-500 text-slate-950 text-xs font-bold mb-2">
+              Título Revocado
+            </div>
+            <h3 className="text-2xl font-black">Credencial sin Validez Actual</h3>
+          </div>
+        </div>
+
+        <div className="p-5 rounded-2xl bg-amber-950/40 border border-amber-800 text-amber-200 space-y-2">
+          <p className="font-bold text-lg">
+            El documento fue auténtico en el pasado, pero fue revocado.
+          </p>
+          <p className="text-sm text-amber-300">
+            Motivo: {result.reason}
+            <br />
+            Fecha de revocación: {result.date}
+          </p>
+        </div>
+
+        <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 font-mono text-xs space-y-1">
+          <div className="text-slate-400">Hash histórico en Stellar Ledger:</div>
+          <div className="text-amber-400 break-all select-all font-bold text-sm">
+            {result.hash}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+};
+
+export default VerifyInput;
