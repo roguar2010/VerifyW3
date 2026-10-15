@@ -40,10 +40,15 @@ export default function Header() {
         <div className="flex items-center gap-2.5">
           <button
             onClick={toggle}
-            title="Alternar modo claro / oscuro"
-            className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-300 dark:border-slate-800 text-lg leading-none"
+            aria-label={dark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+            title={dark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+            className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-300 dark:border-slate-800 text-slate-700 dark:text-amber-400 transition-all flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-cyan-500/40"
           >
-            {dark ? '☀️' : '🌙'}
+            {dark ? (
+              <SunIcon className="w-5 h-5 text-amber-400 transition-transform duration-200 hover:rotate-45" />
+            ) : (
+              <MoonIcon className="w-5 h-5 text-slate-700 dark:text-slate-200 transition-transform duration-200 hover:-rotate-12" />
+            )}
           </button>
 
           {/* Se mantiene visible en todas las páginas: recordatorio de que solo usamos testnet */}
@@ -65,3 +70,48 @@ export default function Header() {
     </header>
   );
 }
+
+function SunIcon({ className = 'w-5 h-5' }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v3" />
+      <path d="M12 19v3" />
+      <path d="M4.93 4.93l2.12 2.12" />
+      <path d="M16.95 16.95l2.12 2.12" />
+      <path d="M2 12h3" />
+      <path d="M19 12h3" />
+      <path d="M4.93 19.07l2.12-2.12" />
+      <path d="M16.95 7.05l2.12-2.12" />
+    </svg>
+  );
+}
+
+function MoonIcon({ className = 'w-5 h-5' }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+    </svg>
+  );
+}
+
