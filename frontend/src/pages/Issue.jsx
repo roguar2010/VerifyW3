@@ -1,6 +1,7 @@
 // =============================================================================
 // PANTALLA: Portal del emisor        RESPONSABLE: Ronald Guarín
 // Implementación completa de HU-03 (Registro/Emisión) y HU-04 (Revocación)
+// Conexión real a Soroban Smart Contract con los 5 estados de UI obligatorios.
 // =============================================================================
 import { useState, useEffect, useRef } from 'react';
 import PageHeader from '../components/ui/PageHeader';
@@ -11,29 +12,43 @@ import {
   revokeCredential,
   listCredentialsByIssuer,
   LedgerError,
+  CONTRACT_ID,
 } from '../services/ledger';
 import { sha256File, formatFileSize, formatDate } from '../lib/hash';
 
 export default function Issue() {
-  const { address, institution, connect, disconnect } = useWallet();
+  const {
+    address,
+    institution,
+    isWalletKitConnected,
+    isConnecting,
+    walletError,
+    connect,
+    connectWallet,
+    disconnect,
+    signTransaction,
+  } = useWallet();
 
-  // Estados del formulario de emisión
+  // Estados del formulario de emisión y ciclo de vida de UI (Sesión 7)
   const [code, setCode] = useState('');
   const [file, setFile] = useState(null);
   const [hash, setHash] = useState('');
   const [isHashing, setIsHashing] = useState(false);
-  const [isPublishing, setIsPublishing] = useState(false);
+
+  // Estados de transacción: 'idle' | 'simulating' | 'waiting_signature' | 'submitting' | 'confirmed' | 'error'
+  const [txStage, setTxStage] = useState('idle');
   const [publishSuccess, setPublishSuccess] = useState(null);
   const [formError, setFormError] = useState('');
 
-  // Estados de la lista de credenciales
+  // Estados de la lista de credenciales y revocación
   const [credentials, setCredentials] = useState([]);
   const [isLoadingList, setIsLoadingList] = useState(false);
   const [revokingHash, setRevokingHash] = useState(null);
+  const [revokeStage, setRevokeStage] = useState('idle');
   const [revokeError, setRevokeError] = useState('');
-  const [revokeSuccess, setRevokeSuccess] = useState('');
+  const [revokeSuccess, setRevokeSuccess] = useState(null);
 
-  // Estados para prueba de seguridad / revocación forzada
+  // Estados para prueba de seguridad / revocación forzada (HU-04 Escenario 2)
   const [testHash, setTestHash] = useState('');
   const [testRevoking, setTestRevoking] = useState(false);
   const [testMessage, setTestMessage] = useState(null);
@@ -76,9 +91,10 @@ export default function Issue() {
       setCredentials([]);
     }
     setPublishSuccess(null);
+    setTxStage('idle');
     setFormError('');
     setRevokeError('');
-    setRevokeSuccess('');
+    setRevokeSuccess(null);
     setTestMessage(null);
   }, [address]);
 
@@ -91,6 +107,7 @@ export default function Issue() {
     }
     setFormError('');
     setPublishSuccess(null);
+    setTxStage('idle');
     setFile({
       name: selectedFile.name,
       size: formatFileSize(selectedFile.size),
@@ -106,7 +123,7 @@ export default function Issue() {
     }
   };
 
-  // Enviar formulario de emisión
+  // Enviar formulario de emisión (HU-03)
   const handlePublish = async (e) => {
     e.preventDefault();
     if (!address) {
@@ -122,18 +139,22 @@ export default function Issue() {
       return;
     }
 
-    setIsPublishing(true);
     setFormError('');
     setPublishSuccess(null);
+    setTxStage('simulating');
 
     try {
       const result = await registerCredential({
         hash,
         code: code.trim(),
         issuer: address,
+        signTransaction: isWalletKitConnected ? signTransaction : null,
+        onProgress: (stage) => setTxStage(stage),
       });
 
       setPublishSuccess(result);
+      setTxStage('confirmed');
+
       // Resetear archivo y regenerar código
       setFile(null);
       setHash('');
@@ -143,21 +164,20 @@ export default function Issue() {
       // Recargar lista
       await loadCredentials(address);
     } catch (err) {
+      setTxStage('error');
       if (err instanceof LedgerError) {
         if (err.code === 'DUPLICATE') {
           setFormError('⚠️ El documento (o su código de credencial) ya ha sido registrado previamente.');
         } else {
-          setFormError(`Error del ledger: ${err.message}`);
+          setFormError(err.message);
         }
       } else {
-        setFormError('Ocurrió un error inesperado al registrar en la red.');
+        setFormError(err.message || 'Ocurrió un error inesperado al registrar en la red.');
       }
-    } finally {
-      setIsPublishing(false);
     }
   };
 
-  // Revocar credencial
+  // Revocar credencial (HU-04)
   const handleRevoke = async (credHash) => {
     const confirm = window.confirm(
       '¿Estás seguro de que deseas revocar esta credencial? Esta acción quedará registrada de forma inmutable en el ledger.'
@@ -166,17 +186,26 @@ export default function Issue() {
 
     setRevokingHash(credHash);
     setRevokeError('');
-    setRevokeSuccess('');
+    setRevokeSuccess(null);
+    setRevokeStage('simulating');
 
     try {
-      await revokeCredential({ hash: credHash, caller: address });
-      setRevokeSuccess(`Credencial revocada exitosamente.`);
+      const result = await revokeCredential({
+        hash: credHash,
+        caller: address,
+        signTransaction: isWalletKitConnected ? signTransaction : null,
+        onProgress: (stage) => setRevokeStage(stage),
+      });
+
+      setRevokeSuccess(result);
+      setRevokeStage('confirmed');
       await loadCredentials(address);
     } catch (err) {
+      setRevokeStage('error');
       if (err instanceof LedgerError) {
         setRevokeError(`No se pudo revocar: ${err.message}`);
       } else {
-        setRevokeError('Error inesperado al revocar.');
+        setRevokeError(err.message || 'Error inesperado al revocar.');
       }
     } finally {
       setRevokingHash(null);
@@ -191,7 +220,11 @@ export default function Issue() {
     setTestMessage(null);
 
     try {
-      await revokeCredential({ hash: testHash.trim(), caller: address });
+      await revokeCredential({
+        hash: testHash.trim(),
+        caller: address,
+        signTransaction: isWalletKitConnected ? signTransaction : null,
+      });
       setTestMessage({ type: 'success', text: 'Credencial revocada con éxito.' });
       setTestHash('');
       await loadCredentials(address);
@@ -202,20 +235,22 @@ export default function Issue() {
           text: `[${err.code}] ${err.message}`,
         });
       } else {
-        setTestMessage({ type: 'error', text: 'Error inesperado.' });
+        setTestMessage({ type: 'error', text: err.message || 'Error inesperado.' });
       }
     } finally {
       setTestRevoking(false);
     }
   };
 
+  const isBusy = txStage === 'simulating' || txStage === 'waiting_signature' || txStage === 'submitting';
+
   return (
     <div className="space-y-10 max-w-5xl mx-auto pb-12">
       <PageHeader
-        badge="🏛️ Portal Institucional"
+        badge="🏛️ Portal Institucional · Stellar Soroban"
         title="Panel de emisión y"
         highlight="revocación"
-        subtitle="Registra la huella de títulos y diplomas con la firma oficial de tu institución."
+        subtitle="Registra la huella de títulos y diplomas con la firma oficial de tu institución en Stellar Testnet."
       />
 
       {/* SECCIÓN 1: SELECTOR DE BILLETERA / IDENTIDAD INSTITUCIONAL */}
@@ -226,7 +261,7 @@ export default function Issue() {
               <span>🔐</span> Identidad y Billetera Institucional
             </h2>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-              Simulación de conexión Freighter / Stellar Wallets Kit con firmas criptográficas.
+              Firma transacciones directamente con Freighter Wallet o selecciona una institución acreditada.
             </p>
           </div>
           {address && (
@@ -239,73 +274,126 @@ export default function Issue() {
           )}
         </div>
 
+        {walletError && (
+          <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-300 text-xs font-semibold">
+            ⚠️ {walletError}
+          </div>
+        )}
+
         {!address ? (
-          <div className="space-y-4">
-            <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
-              Selecciona una institución para firmar como emisor autorizado:
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {INSTITUTIONS.map((inst) => (
+          <div className="space-y-5">
+            {/* Opción 1: Conexión Real con Extensión Web3 (Freighter) */}
+            <div className="p-5 rounded-2xl bg-gradient-to-r from-cyan-500/10 via-emerald-500/10 to-transparent border border-cyan-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div>
+                <span className="text-xs font-bold uppercase tracking-wider text-cyan-600 dark:text-cyan-400 block mb-1">
+                  Recomendado para evaluación completa
+                </span>
+                <h3 className="font-extrabold text-slate-900 dark:text-white text-base">
+                  Conectar con Freighter (Wallet Web3 Stellar)
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Usa tu extensión oficial de Stellar en navegador para firmar transacciones on-chain.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={connectWallet}
+                disabled={isConnecting}
+                className="px-5 py-3 rounded-2xl bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-400 hover:to-emerald-400 text-slate-950 font-black text-sm shadow-md transition disabled:opacity-50 shrink-0"
+              >
+                {isConnecting ? 'Abriendo Freighter...' : '🚀 Conectar Freighter Wallet'}
+              </button>
+            </div>
+
+            {/* Opción 2: Selector Rápido de Instituciones Acreditadas */}
+            <div className="space-y-3">
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                O selecciona una identidad pre-acreditada para pruebas rápidas:
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {INSTITUTIONS.map((inst) => (
+                  <button
+                    key={inst.address}
+                    onClick={() => connect(inst.address)}
+                    className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 hover:border-cyan-500 hover:bg-cyan-50/50 dark:hover:bg-cyan-950/20 text-left transition flex items-start justify-between gap-3 group"
+                  >
+                    <div>
+                      <span className="inline-block text-xs font-semibold px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 mb-1.5">
+                        ✓ Acreditada
+                      </span>
+                      <h3 className="font-bold text-slate-900 dark:text-white group-hover:text-cyan-600 dark:group-hover:text-cyan-400 text-sm">
+                        {inst.name}
+                      </h3>
+                      <p className="text-xs text-slate-500 font-mono mt-1">{shortAddress(inst.address)}</p>
+                    </div>
+                    <span className="text-cyan-500 font-bold text-sm">Conectar →</span>
+                  </button>
+                ))}
+
+                {/* Botón para probar cuenta no acreditada (Outsider) */}
                 <button
-                  key={inst.address}
-                  onClick={() => connect(inst.address)}
-                  className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 hover:border-cyan-500 hover:bg-cyan-50/50 dark:hover:bg-cyan-950/20 text-left transition flex items-start justify-between gap-3 group"
+                  onClick={() => connect(OUTSIDER_ACCOUNT.address)}
+                  className="p-4 rounded-2xl border border-dashed border-amber-300 dark:border-amber-800/80 bg-amber-50/50 dark:bg-amber-950/20 hover:border-amber-500 text-left transition flex items-start justify-between gap-3 group sm:col-span-2"
                 >
                   <div>
-                    <span className="inline-block text-xs font-semibold px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 mb-1.5">
-                      ✓ Acreditada
+                    <span className="inline-block text-xs font-semibold px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700 mb-1.5">
+                      ⚠️ Cuenta de prueba (No acreditada)
                     </span>
-                    <h3 className="font-bold text-slate-900 dark:text-white group-hover:text-cyan-600 dark:group-hover:text-cyan-400 text-sm">
-                      {inst.name}
+                    <h3 className="font-bold text-slate-900 dark:text-white text-sm">
+                      {OUTSIDER_ACCOUNT.label}
                     </h3>
-                    <p className="text-xs text-slate-500 font-mono mt-1">{shortAddress(inst.address)}</p>
+                    <p className="text-xs text-slate-500 font-mono mt-1">{shortAddress(OUTSIDER_ACCOUNT.address)}</p>
                   </div>
-                  <span className="text-cyan-500 font-bold text-sm">Conectar →</span>
+                  <span className="text-amber-600 dark:text-amber-400 font-bold text-sm">Conectar (Prueba) →</span>
                 </button>
-              ))}
-
-              {/* Botón para probar cuenta no acreditada (Outsider) */}
-              <button
-                onClick={() => connect(OUTSIDER_ACCOUNT.address)}
-                className="p-4 rounded-2xl border border-dashed border-amber-300 dark:border-amber-800/80 bg-amber-50/50 dark:bg-amber-950/20 hover:border-amber-500 text-left transition flex items-start justify-between gap-3 group sm:col-span-2"
-              >
-                <div>
-                  <span className="inline-block text-xs font-semibold px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700 mb-1.5">
-                    ⚠️ Cuenta de prueba (No acreditada)
-                  </span>
-                  <h3 className="font-bold text-slate-900 dark:text-white text-sm">
-                    {OUTSIDER_ACCOUNT.label}
-                  </h3>
-                  <p className="text-xs text-slate-500 font-mono mt-1">{shortAddress(OUTSIDER_ACCOUNT.address)}</p>
-                </div>
-                <span className="text-amber-600 dark:text-amber-400 font-bold text-sm">Conectar (Prueba) →</span>
-              </button>
+              </div>
             </div>
           </div>
         ) : (
-          <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl bg-cyan-50/60 dark:bg-cyan-950/30 border border-cyan-200 dark:border-cyan-800/60">
+          <div className="flex flex-wrap items-center justify-between gap-4 p-5 rounded-2xl bg-cyan-50/60 dark:bg-cyan-950/30 border border-cyan-200 dark:border-cyan-800/60">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
                 <span className="text-lg">🏛️</span>
                 <span className="font-black text-slate-900 dark:text-white text-base">
-                  {institution ? institution.name : OUTSIDER_ACCOUNT.label}
+                  {institution
+                    ? institution.name
+                    : address === OUTSIDER_ACCOUNT.address
+                    ? OUTSIDER_ACCOUNT.label
+                    : 'Billetera Freighter (Emisor Testnet)'}
                 </span>
                 {institution ? (
                   <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
                     Emisor Verificado
                   </span>
-                ) : (
+                ) : address === OUTSIDER_ACCOUNT.address ? (
                   <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
                     No Acreditado
+                  </span>
+                ) : (
+                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-cyan-100 dark:bg-cyan-950 text-cyan-800 dark:text-cyan-300 border border-cyan-300 dark:border-cyan-800">
+                    Emisor Activo (Testnet)
+                  </span>
+                )}
+                {isWalletKitConnected && (
+                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-800">
+                    🔌 Freighter Conectado
                   </span>
                 )}
               </div>
               <p className="text-xs font-mono text-slate-600 dark:text-slate-400">
-                Dirección Stellar: <span className="font-bold">{address}</span>
+                Dirección Stellar: <span className="font-bold select-all">{address}</span>
               </p>
             </div>
-            <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
-              Red: <span className="font-bold text-amber-600 dark:text-amber-400">Stellar Testnet</span>
+            <div className="text-xs font-medium text-slate-500 dark:text-slate-400 space-y-1 text-right">
+              <div>Red: <span className="font-bold text-amber-600 dark:text-amber-400">Stellar Testnet</span></div>
+              <a
+                href={`https://stellar.expert/explorer/testnet/contract/${CONTRACT_ID}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-cyan-600 dark:text-cyan-400 hover:underline block"
+              >
+                Contrato VerifyW3 en Stellar Expert ↗
+              </a>
             </div>
           </div>
         )}
@@ -420,39 +508,79 @@ export default function Issue() {
                 </div>
               )}
 
-              {/* Mensajes de error */}
+              {/* ============================================================ */}
+              {/* LOS 5 ESTADOS DE UI OBLIGATORIOS DE SESIÓN 7 */}
+              {/* ============================================================ */}
+
+              {/* Estado 2: Simulación previa */}
+              {txStage === 'simulating' && (
+                <div className="p-4 rounded-2xl bg-cyan-50 dark:bg-cyan-950/50 border border-cyan-300 dark:border-cyan-800 flex items-center gap-3 animate-pulse">
+                  <div className="w-5 h-5 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin shrink-0" />
+                  <div className="text-xs text-cyan-800 dark:text-cyan-200">
+                    <span className="font-bold block">Paso 1/3: Simulando transacción en Soroban</span>
+                    <span>Validando precondiciones y estimando costo de gas antes de solicitar firma...</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Estado 3: Esperando firma en Wallet */}
+              {txStage === 'waiting_signature' && (
+                <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/50 border border-amber-300 dark:border-amber-700 flex items-center gap-3 animate-pulse">
+                  <div className="w-5 h-5 border-2 border-amber-500 border-t-transparent rounded-full animate-spin shrink-0" />
+                  <div className="text-xs text-amber-800 dark:text-amber-200">
+                    <span className="font-bold block">Paso 2/3: Esperando firma en Freighter Wallet</span>
+                    <span>Por favor abre tu extensión Freighter y autoriza la invocación del contrato.</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Estado 4: Enviando y confirmando en la red */}
+              {txStage === 'submitting' && (
+                <div className="p-4 rounded-2xl bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-300 dark:border-indigo-800 flex items-center gap-3 animate-pulse">
+                  <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin shrink-0" />
+                  <div className="text-xs text-indigo-800 dark:text-indigo-200">
+                    <span className="font-bold block">Paso 3/3: Transacción enviada a Stellar Testnet</span>
+                    <span>Esperando confirmación por consenso de validadores Soroban...</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Estado 6 (Error): Mensajes de error amigables */}
               {formError && (
-                <div className="p-4 rounded-2xl bg-red-50 dark:bg-red-950/60 border border-red-300 dark:border-red-800 text-red-800 dark:text-red-300 text-xs font-semibold flex items-center gap-2">
-                  <span>❌</span>
-                  <span>{formError}</span>
+                <div className="p-4 rounded-2xl bg-red-50 dark:bg-red-950/60 border border-red-300 dark:border-red-800 text-red-800 dark:text-red-300 text-xs font-semibold flex items-start gap-2">
+                  <span className="text-base shrink-0">❌</span>
+                  <div className="space-y-1">
+                    <span className="font-bold block">No se pudo completar el registro:</span>
+                    <span>{formError}</span>
+                  </div>
                 </div>
               )}
 
               {/* Botón de Enviar */}
               <button
                 type="submit"
-                disabled={isPublishing || isHashing || !hash || !code}
+                disabled={isBusy || isHashing || !hash || !code}
                 className="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-400 hover:to-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed text-white dark:text-slate-950 font-black text-sm sm:text-base shadow-lg transition flex items-center justify-center gap-2"
               >
-                {isPublishing ? (
+                {isBusy ? (
                   <>
                     <span className="w-4 h-4 border-2 border-white dark:border-slate-950 border-t-transparent rounded-full animate-spin" />
-                    <span>Firmando transacción y publicando en Stellar...</span>
+                    <span>Procesando en Stellar Testnet...</span>
                   </>
                 ) : (
                   <>
-                    <span>✍️ Firmar y Publicar en la Red</span>
+                    <span>✍️ Firmar y Publicar en la Red Stellar</span>
                   </>
                 )}
               </button>
             </form>
 
-            {/* Recibo de Éxito de Publicación */}
+            {/* Estado 5: Recibo de Éxito de Publicación con Link a Stellar Expert */}
             {publishSuccess && (
-              <div className="p-6 rounded-3xl bg-emerald-50 dark:bg-emerald-950/40 border-2 border-emerald-400 dark:border-emerald-600 space-y-3 animate-fade-in">
+              <div className="p-6 rounded-3xl bg-emerald-50 dark:bg-emerald-950/40 border-2 border-emerald-400 dark:border-emerald-600 space-y-4 animate-fade-in">
                 <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300 font-black text-base">
                   <span>🎉</span>
-                  <span>Credencial registrada exitosamente en el ledger</span>
+                  <span>Credencial registrada exitosamente en Stellar Testnet</span>
                 </div>
                 <dl className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                   <div className="bg-white/80 dark:bg-slate-900/80 p-3 rounded-xl border border-emerald-200 dark:border-emerald-900">
@@ -462,18 +590,35 @@ export default function Issue() {
                     </dd>
                   </div>
                   <div className="bg-white/80 dark:bg-slate-900/80 p-3 rounded-xl border border-emerald-200 dark:border-emerald-900">
-                    <dt className="text-slate-500 font-semibold">Ledger Sequence</dt>
-                    <dd className="font-mono font-bold text-slate-800 dark:text-white">
-                      #{publishSuccess.ledger}
+                    <dt className="text-slate-500 font-semibold">Estado On-Chain</dt>
+                    <dd className="font-bold text-emerald-600 dark:text-emerald-400">
+                      {publishSuccess.credential.onChain ? '✓ Grabado en Testnet' : 'Modo Demostración'}
                     </dd>
                   </div>
-                  <div className="bg-white/80 dark:bg-slate-900/80 p-3 rounded-xl border border-emerald-200 dark:border-emerald-900">
-                    <dt className="text-slate-500 font-semibold">Tx Hash</dt>
-                    <dd className="font-mono font-bold text-cyan-600 dark:text-cyan-400">
+                  <div className="bg-white/80 dark:bg-slate-900/80 p-3 rounded-xl border border-emerald-200 dark:border-emerald-900 sm:col-span-1">
+                    <dt className="text-slate-500 font-semibold">Tx Hash / Identificador</dt>
+                    <dd className="font-mono font-bold text-cyan-600 dark:text-cyan-400 truncate" title={publishSuccess.txId}>
                       {publishSuccess.txId}
                     </dd>
                   </div>
                 </dl>
+
+                {publishSuccess.explorerUrl && (
+                  <div className="pt-2 border-t border-emerald-200 dark:border-emerald-800/60 flex flex-wrap items-center justify-between gap-3 text-xs">
+                    <span className="text-slate-600 dark:text-slate-400 font-medium">
+                      Explorador público de la red:
+                    </span>
+                    <a
+                      href={publishSuccess.explorerUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 font-bold text-emerald-700 dark:text-emerald-300 hover:underline"
+                    >
+                      <span>Ver Transacción en Stellar Expert</span>
+                      <span>↗</span>
+                    </a>
+                  </div>
+                )}
               </div>
             )}
           </section>
@@ -494,9 +639,31 @@ export default function Issue() {
               </span>
             </div>
 
+            {/* Progreso durante revocación */}
+            {revokeStage !== 'idle' && revokeStage !== 'confirmed' && revokeStage !== 'error' && (
+              <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/50 border border-amber-300 dark:border-amber-800 flex items-center gap-3 animate-pulse">
+                <div className="w-5 h-5 border-2 border-amber-500 border-t-transparent rounded-full animate-spin shrink-0" />
+                <span className="text-xs font-semibold text-amber-800 dark:text-amber-200">
+                  {revokeStage === 'simulating' && 'Simulando revocación en Soroban...'}
+                  {revokeStage === 'waiting_signature' && 'Esperando firma de revocación en Freighter...'}
+                  {revokeStage === 'submitting' && 'Enviando transacción de revocación a Stellar Testnet...'}
+                </span>
+              </div>
+            )}
+
             {revokeSuccess && (
-              <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-semibold">
-                ✓ {revokeSuccess}
+              <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-semibold flex items-center justify-between gap-3">
+                <span>✓ Credencial revocada exitosamente en el ledger.</span>
+                {revokeSuccess.explorerUrl && (
+                  <a
+                    href={revokeSuccess.explorerUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline text-emerald-700 dark:text-emerald-300 font-bold"
+                  >
+                    Ver en Stellar Expert ↗
+                  </a>
+                )}
               </div>
             )}
 

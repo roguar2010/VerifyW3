@@ -2,6 +2,12 @@
 // En la semana 4 esta lista saldrá del contrato (lista curada de emisores).
 export const INSTITUTIONS = [
   {
+    address: 'GCWIEQFTOTDCIKNTDZMWUNRXOJJ2BX7CH7DD3EAVSLZJ5LRLBO3V6MQ5',
+    name: 'VerifyW3 Academy (Emisor Oficial Testnet)',
+    country: 'Colombia / Red Stellar',
+    domain: 'verifyw3.org',
+  },
+  {
     address: 'GDEMOUDEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
     name: 'Universidad de Antioquia',
     country: 'Colombia',
@@ -26,7 +32,11 @@ export const INSTITUTIONS = [
 //  - HU-05 escenario 2 (emisor no reconocido)
 export const OUTSIDER_ACCOUNT = {
   address: 'GFAKEPATITOAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
-  label: 'Instituto Patito (no acreditado)',
+  label: 'Instituto no acreditado',
 };
 
 export const shortAddress = (a = '') => (a.length > 12 ? `${a.slice(0, 6)}…${a.slice(-4)}` : a);
+
+export const getInstitution = (address) =>
+  INSTITUTIONS.find((i) => i.address.toLowerCase() === (address || '').toLowerCase()) || null;
+
