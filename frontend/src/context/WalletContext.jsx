@@ -14,6 +14,10 @@ function initKit() {
       StellarWalletsKit.init({
         network: Networks.TESTNET,
         modules: [new FreighterModule()],
+        authModal: {
+          showInstallLabel: false, // Desactivar la etiqueta que bloquea el clic con "Install ↗"
+          hideUnsupportedWallets: false,
+        },
       });
       isKitInitialized = true;
     } catch (err) {
@@ -72,31 +76,62 @@ export function WalletProvider({ children }) {
     try {
       let pubKey = null;
 
-      // 1. Intentar abrir el modal oficial de StellarWalletsKit
-      try {
-        const modalResult = await StellarWalletsKit.authModal();
-        if (modalResult?.address) {
-          pubKey = modalResult.address;
-        }
-      } catch (modalErr) {
-        // Si el usuario simplemente cerró la ventana emergente
-        if (modalErr?.code === -1 && String(modalErr?.message).toLowerCase().includes('close')) {
-          setIsConnecting(false);
-          return;
-        }
-
-        // Si falló el render del modal, intentar conexión directa con el módulo de Freighter
-        console.warn('authModal no completado, intentando conexión directa con Freighter:', modalErr);
-        const freighter = new FreighterModule();
-        const res = await freighter.getAddress();
-        if (res?.address) {
-          pubKey = res.address;
+      // 1. Intentar conexión directa con la extensión inyectada en window (evita retardos de carga de Vercel)
+      if (typeof window !== 'undefined') {
+        const injected = window.freighter || (window.stellar?.provider === 'freighter' ? window.stellar : null);
+        if (injected) {
           try {
-            StellarWalletsKit.setWallet(freighter.productId);
-          } catch {
-            /* noop */
+            if (injected.requestAccess) {
+              const accessResult = await injected.requestAccess();
+              if (!accessResult?.error) {
+                const pkResult = await (injected.getPublicKey ? injected.getPublicKey() : injected.getAddress());
+                const detectedAddr = typeof pkResult === 'string' ? pkResult : pkResult?.address || pkResult?.publicKey;
+                if (detectedAddr) {
+                  pubKey = detectedAddr;
+                  try {
+                    StellarWalletsKit.setWallet('freighter');
+                  } catch {
+                    /* noop */
+                  }
+                }
+              }
+            }
+          } catch (injectErr) {
+            console.warn('Acceso directo con window.freighter falló, usando módulo del kit:', injectErr);
           }
-        } else {
+        }
+      }
+
+      // 2. Si no se detectó por window directo, probar con FreighterModule oficial
+      if (!pubKey) {
+        try {
+          const freighter = new FreighterModule();
+          const res = await freighter.getAddress();
+          if (res?.address) {
+            pubKey = res.address;
+            try {
+              StellarWalletsKit.setWallet(freighter.productId);
+            } catch {
+              /* noop */
+            }
+          }
+        } catch (modErr) {
+          console.warn('FreighterModule.getAddress no disponible de inmediato, abriendo modal:', modErr);
+        }
+      }
+
+      // 3. Fallback: Abrir el modal visual de StellarWalletsKit
+      if (!pubKey) {
+        try {
+          const modalResult = await StellarWalletsKit.authModal();
+          if (modalResult?.address) {
+            pubKey = modalResult.address;
+          }
+        } catch (modalErr) {
+          if (modalErr?.code === -1 && String(modalErr?.message).toLowerCase().includes('close')) {
+            setIsConnecting(false);
+            return;
+          }
           throw modalErr;
         }
       }
@@ -139,6 +174,21 @@ export function WalletProvider({ children }) {
     initKit();
     const networkPassphrase = 'Test SDF Network ; September 2015';
 
+    // 1. Probar primero con la extensión inyectada si está activa
+    if (typeof window !== 'undefined') {
+      const injected = window.freighter || (window.stellar?.provider === 'freighter' ? window.stellar : null);
+      if (injected && injected.signTransaction) {
+        try {
+          const res = await injected.signTransaction(xdr, { networkPassphrase });
+          const signed = typeof res === 'string' ? res : res?.signedTxXdr || res?.signedXDR || res?.signedXdr;
+          if (signed) return signed;
+        } catch (e) {
+          console.warn('Firma directa con window.freighter falló, probando StellarWalletsKit:', e);
+        }
+      }
+    }
+
+    // 2. Probar mediante StellarWalletsKit
     try {
       const result = await StellarWalletsKit.signTransaction(xdr, { networkPassphrase });
       return result.signedTxXdr || result.signedXDR || result.signedXdr || result;
