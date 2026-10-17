@@ -50,7 +50,7 @@ function Field({ label, children }) {
   );
 }
 
-function IssuerBlock({ institution }) {
+function IssuerBlock({ institution, issuer }) {
   if (institution) {
     return (
       <Field label="Institución emisora">
@@ -64,9 +64,12 @@ function IssuerBlock({ institution }) {
   }
   return (
     <Field label="Institución emisora">
-      <strong className="text-amber-300 text-lg mt-1 block">Emisor no verificado</strong>
-      <span className="text-xs text-amber-400 mt-1 block font-semibold">
-        ⚠️ Esta entidad no figura en el directorio de instituciones acreditadas de VerifyW3.
+      <strong className="text-cyan-300 font-mono text-sm mt-1 block truncate" title={issuer}>
+        {issuer ? `${issuer.slice(0, 8)}…${issuer.slice(-6)}` : 'Emisor Externo'}
+      </strong>
+      <span className="text-xs text-slate-400 mt-1 block">Cuenta Stellar Testnet</span>
+      <span className="text-xs text-cyan-400 mt-1 block font-semibold">
+        🛡️ Firma válida registrada en el ledger
       </span>
     </Field>
   );
@@ -106,11 +109,18 @@ export default function ResultCard({ result, file, hash, code }) {
 
       {found && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <IssuerBlock institution={institution} />
+          <IssuerBlock institution={institution} issuer={credential?.issuer} />
           <Field label="Estado en Stellar">
-            <strong className={`text-lg mt-1 block ${verdict === 'VALID' ? 'text-emerald-400' : 'text-amber-400'}`}>
-              {verdict === 'VALID' ? 'Vigente' : 'Revocada'}
-            </strong>
+            <div className="flex items-center gap-2 mt-1">
+              <strong className={`text-lg ${verdict === 'VALID' ? 'text-emerald-400' : 'text-amber-400'}`}>
+                {verdict === 'VALID' ? 'Vigente' : 'Revocada'}
+              </strong>
+              {credential.onChain && (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-300 border border-cyan-800">
+                  On-Chain (Testnet)
+                </span>
+              )}
+            </div>
             <span className="text-xs text-slate-400 mt-1 block">Expedida el {formatDate(credential.issuedAt)}</span>
             {verdict === 'REVOKED' && <span className="text-xs text-amber-400 mt-0.5 block">Anulada el {formatDate(credential.revokedAt)}</span>}
           </Field>
@@ -120,6 +130,38 @@ export default function ResultCard({ result, file, hash, code }) {
             </strong>
             <span className="text-xs text-slate-400 mt-1 block">{file ? `Tamaño: ${file.size}` : 'Consulta por código'}</span>
           </Field>
+        </div>
+      )}
+
+      {/* Explorador de Stellar Expert */}
+      {found && (
+        <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2 text-slate-400">
+            <span>🔍</span>
+            <span>Verificable públicamente en Stellar Explorer:</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <a
+              href={`https://stellar.expert/explorer/testnet/contract/${credential.contractId || 'CDYUNDPXQ4NIR2K4AJQFL6MVJR7BAQ3R5REIZ5EGJ2TFPGCXF4JO4GTL'}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-cyan-400 hover:text-cyan-300 hover:underline font-mono font-semibold flex items-center gap-1"
+            >
+              <span>Contrato en Stellar Expert</span>
+              <span>↗</span>
+            </a>
+            {credential.txHash && (
+              <a
+                href={`https://stellar.expert/explorer/testnet/tx/${credential.txHash}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-emerald-400 hover:text-emerald-300 hover:underline font-mono font-semibold flex items-center gap-1"
+              >
+                <span>Tx en Stellar Expert</span>
+                <span>↗</span>
+              </a>
+            )}
+          </div>
         </div>
       )}
 
