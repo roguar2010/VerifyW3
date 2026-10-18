@@ -174,16 +174,43 @@ export function WalletProvider({ children }) {
     initKit();
     const networkPassphrase = 'Test SDF Network ; September 2015';
 
-    // 1. Probar primero con la extensión inyectada si está activa
+    // 1. Probar primero con la extensión inyectada en window
     if (typeof window !== 'undefined') {
       const injected = window.freighter || (window.stellar?.provider === 'freighter' ? window.stellar : null);
-      if (injected && injected.signTransaction) {
+      if (injected) {
+        // Asegurar que la sesión de la extensión esté autorizada en esta pestaña
         try {
-          const res = await injected.signTransaction(xdr, { networkPassphrase });
-          const signed = typeof res === 'string' ? res : res?.signedTxXdr || res?.signedXDR || res?.signedXdr;
-          if (signed) return signed;
-        } catch (e) {
-          console.warn('Firma directa con window.freighter falló, probando StellarWalletsKit:', e);
+          if (injected.isConnected) {
+            const isConn = await injected.isConnected();
+            if (!isConn && injected.requestAccess) {
+              await injected.requestAccess();
+            }
+          } else if (injected.requestAccess) {
+            await injected.requestAccess();
+          }
+        } catch (connErr) {
+          console.warn('Verificación previa de Freighter:', connErr);
+        }
+
+        if (injected.signTransaction) {
+          try {
+            const res = await injected.signTransaction(xdr, { networkPassphrase });
+            const signed = typeof res === 'string' ? res : res?.signedTxXdr || res?.signedXDR || res?.signedXdr;
+            if (signed) return signed;
+          } catch (e) {
+            // Si Freighter responde que no está conectado o está bloqueado, solicitar acceso y reintentar
+            if (String(e?.message).toLowerCase().includes('not connected') && injected.requestAccess) {
+              try {
+                await injected.requestAccess();
+                const retryRes = await injected.signTransaction(xdr, { networkPassphrase });
+                const retrySigned = typeof retryRes === 'string' ? retryRes : retryRes?.signedTxXdr || retryRes?.signedXDR || retryRes?.signedXdr;
+                if (retrySigned) return retrySigned;
+              } catch (retryErr) {
+                console.warn('Reintento con requestAccess falló:', retryErr);
+              }
+            }
+            console.warn('Firma directa con window.freighter falló, probando StellarWalletsKit:', e);
+          }
         }
       }
     }

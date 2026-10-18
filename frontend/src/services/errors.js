@@ -18,6 +18,14 @@ export function mapSorobanError(error) {
     return 'Cancelaste la firma en tu wallet.';
   }
 
+  // 1.1 Extensión de Freighter bloqueada o sin autorización activa
+  if (
+    msg.toLowerCase().includes('freighter is not connected') ||
+    msg.toLowerCase().includes('not connected')
+  ) {
+    return 'Tu extensión Freighter está bloqueada o desconectada. Por favor abre la extensión Freighter en tu navegador, ingresa tu contraseña para desbloquearla y vuelve a presionar el botón.';
+  }
+
   // 2. Cuenta no encontrada o sin fondos (falta fondear con Friendbot)
   if (
     msg.toLowerCase().includes('account not found') ||
