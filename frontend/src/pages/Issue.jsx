@@ -34,6 +34,7 @@ export default function Issue() {
   const [file, setFile] = useState(null);
   const [hash, setHash] = useState('');
   const [isHashing, setIsHashing] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
 
   // Estados de transacción: 'idle' | 'simulating' | 'waiting_signature' | 'submitting' | 'confirmed' | 'error'
   const [txStage, setTxStage] = useState('idle');
@@ -120,6 +121,26 @@ export default function Issue() {
       setFormError('Error al calcular el hash criptográfico del archivo.');
     } finally {
       setIsHashing(false);
+    }
+  };
+
+  // Manejo de Drag and Drop
+  const handleDrag = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === 'dragenter' || e.type === 'dragover') {
+      setDragActive(true);
+    } else if (e.type === 'dragleave') {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFileChange(e.dataTransfer.files[0]);
     }
   };
 
@@ -467,8 +488,16 @@ export default function Issue() {
                   Certificado digital en PDF:
                 </label>
                 <div
+                  onDragEnter={handleDrag}
+                  onDragOver={handleDrag}
+                  onDragLeave={handleDrag}
+                  onDrop={handleDrop}
                   onClick={() => fileInputRef.current?.click()}
-                  className="border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-cyan-500 dark:hover:border-cyan-400 rounded-2xl p-6 text-center cursor-pointer transition bg-slate-50/50 dark:bg-slate-950/40 group"
+                  className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition group ${
+                    dragActive
+                      ? 'border-cyan-500 bg-cyan-50/50 dark:bg-cyan-950/30 ring-2 ring-cyan-400/20'
+                      : 'border-slate-300 dark:border-slate-700 hover:border-cyan-500 dark:hover:border-cyan-400 bg-slate-50/50 dark:bg-slate-950/40'
+                  }`}
                 >
                   <input
                     ref={fileInputRef}
