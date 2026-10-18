@@ -3,9 +3,27 @@
 // Conectado al Smart Contract VerifyW3: CDYUNDPXQ4NIR2K4AJQFL6MVJR7BAQ3R5REIZ5EGJ2TFPGCXF4JO4GTL
 // =============================================================================
 import * as StellarSdk from '@stellar/stellar-sdk';
+import { Buffer } from 'buffer';
 import seed from '../data/seed.json';
 import { INSTITUTIONS, getInstitution } from '../data/institutions';
 import { mapSorobanError } from './errors';
+
+// Convierte de forma robusta una cadena hexadecimal a bytes para Soroban ScVal
+function hexToBytes(hex) {
+  const clean = hex.startsWith('0x') ? hex.slice(2) : hex;
+  if (typeof Buffer !== 'undefined' && Buffer.from) {
+    try {
+      return Buffer.from(clean, 'hex');
+    } catch {
+      /* fallback */
+    }
+  }
+  const bytes = new Uint8Array(clean.length / 2);
+  for (let i = 0; i < clean.length; i += 2) {
+    bytes[i / 2] = parseInt(clean.substring(i, i + 2), 16);
+  }
+  return bytes;
+}
 
 export const CONTRACT_ID = 'CDYUNDPXQ4NIR2K4AJQFL6MVJR7BAQ3R5REIZ5EGJ2TFPGCXF4JO4GTL';
 export const RPC_URL = 'https://soroban-testnet.stellar.org';
@@ -136,7 +154,7 @@ export async function verifyByHash(hash) {
   }
 
   try {
-    const hashBytes = Buffer.from(cleanHash, 'hex');
+    const hashBytes = hexToBytes(cleanHash);
     const account = new StellarSdk.Account(READ_ONLY_ACCOUNT, '1');
     const tx = new StellarSdk.TransactionBuilder(account, {
       fee: '100',
@@ -209,7 +227,7 @@ export async function registerCredential({ hash, code, issuer, signTransaction, 
     // 1. Obtener secuencia de cuenta de la red
     onProgress?.('simulating');
     const sourceAccount = await server.getAccount(issuer);
-    const hashBytes = Buffer.from(cleanHash, 'hex');
+    const hashBytes = hexToBytes(cleanHash);
 
     // 2. Construir operación de contrato
     const op = contract.call(
@@ -312,7 +330,7 @@ export async function revokeCredential({ hash, caller, signTransaction, onProgre
   try {
     onProgress?.('simulating');
     const sourceAccount = await server.getAccount(caller);
-    const hashBytes = Buffer.from(cleanHash, 'hex');
+    const hashBytes = hexToBytes(cleanHash);
 
     const op = contract.call(
       'revoke_credential',
