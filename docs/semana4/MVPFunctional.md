@@ -3,6 +3,7 @@
 **Proyecto:** VerifyW3 — Verificación Criptográfica de Títulos y Certificados Académicos  
 **Fecha de Entrega:** 17 de Octubre de 2026  
 **Red:** Stellar Testnet (Soroban Smart Contracts)  
+**URL del sitio web:** [https://verify-w3.vercel.app/](https://verify-w3.vercel.app/)  
 
 ---
 
@@ -100,6 +101,7 @@ test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 ### E. Integración Frontend y Estados de UI
+- **URL del sitio web (Vercel):** [https://verify-w3.vercel.app/](https://verify-w3.vercel.app/)
 - **Billetera y SDKs:** `@creit.tech/stellar-wallets-kit` v2.7.1 y `@stellar/stellar-sdk` v13.0.0.
 - **5 Estados de Experiencia de Usuario implementados en la vista de emisión:**
   1. *Idle:* Formulario limpio con cálculo local de SHA-256.

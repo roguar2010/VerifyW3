@@ -68,5 +68,10 @@ export function mapSorobanError(error) {
     return 'La simulación de la transacción falló en el nodo RPC de Stellar. Verifica los datos enviados.';
   }
 
+  // 6. Advertencias de XDR / Versiones de protocolo (Protocolo 21/22 TransactionMetaV4)
+  if (msg.includes('Bad union switch') || msg.includes('TransactionMeta')) {
+    return 'La transacción fue enviada a la red Stellar pero hubo una discrepancia de versión en la lectura de metadatos XDR. Por favor consulta el explorador de Stellar Expert.';
+  }
+
   return `Error en la red Stellar: ${msg}`;
 }
