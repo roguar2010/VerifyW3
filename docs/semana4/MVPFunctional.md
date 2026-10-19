@@ -112,7 +112,7 @@ test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
   6. *Error Mapping:* Traducción transparente de excepciones de red y códigos de error del contrato a mensajes legibles en español.
 
 ### F. Video Demostrativo del MVP Funcional
-- **Enlace del Video:** `https://drive.google.com/drive/folders/1uOJ37d1OnnVb3iwqD1SlfYiIgJC9rmnh?usp=sharing`
+- **Enlace del Video:** [https://drive.google.com/drive/folders/1uOJ37d1OnnVb3iwqD1SlfYiIgJC9rmnh?usp=sharing]
 - **Contenido del Video (Duración: 3 minutos):**
   1. *0:00 - 0:45:* Presentación del problema y arquitectura de VerifyW3 en Stellar Soroban.
   2. *0:45 - 1:30:* Conexión de Freighter Wallet y emisión de credencial on-chain con los 5 estados de UI.
