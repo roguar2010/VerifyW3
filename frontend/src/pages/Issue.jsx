@@ -45,6 +45,7 @@ export default function Issue() {
   const [credentials, setCredentials] = useState([]);
   const [isLoadingList, setIsLoadingList] = useState(false);
   const [revokingHash, setRevokingHash] = useState(null);
+  const [revokeTarget, setRevokeTarget] = useState(null); // Credencial seleccionada para modal de confirmación
   const [revokeStage, setRevokeStage] = useState('idle');
   const [revokeError, setRevokeError] = useState('');
   const [revokeSuccess, setRevokeSuccess] = useState(null);
@@ -198,12 +199,27 @@ export default function Issue() {
     }
   };
 
-  // Revocar credencial (HU-04)
-  const handleRevoke = async (credHash) => {
-    const confirm = window.confirm(
-      '¿Estás seguro de que deseas revocar esta credencial? Esta acción quedará registrada de forma inmutable en el ledger.'
-    );
-    if (!confirm) return;
+  // Cerrar modal de revocación con tecla Escape
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && revokeTarget) {
+        setRevokeTarget(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [revokeTarget]);
+
+  // Abrir modal popup de confirmación de revocación (HU-04)
+  const openRevokeModal = (credential) => {
+    setRevokeTarget(credential);
+  };
+
+  // Ejecutar revocación una vez confirmada en el modal popup
+  const confirmRevoke = async () => {
+    if (!revokeTarget) return;
+    const credHash = revokeTarget.hash;
+    setRevokeTarget(null);
 
     setRevokingHash(credHash);
     setRevokeError('');
@@ -746,7 +762,7 @@ export default function Issue() {
                         <td className="py-3.5 text-right">
                           {c.status === 'ACTIVE' ? (
                             <button
-                              onClick={() => handleRevoke(c.hash)}
+                              onClick={() => openRevokeModal(c)}
                               disabled={revokingHash === c.hash}
                               className="px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 dark:bg-red-950/40 dark:hover:bg-red-900/60 dark:text-red-300 font-bold text-xs border border-red-200 dark:border-red-800 transition disabled:opacity-50"
                             >
@@ -808,6 +824,97 @@ export default function Issue() {
             )}
           </section>
         </>
+      )}
+
+      {/* MODAL / POPUP DE CONFIRMACIÓN DE REVOCACIÓN */}
+      {revokeTarget && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-fade-in"
+          onClick={() => setRevokeTarget(null)}
+        >
+          <div
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl p-6 sm:p-8 max-w-md w-full relative space-y-5 animate-scale-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Botón cerrar esquina */}
+            <button
+              type="button"
+              onClick={() => setRevokeTarget(null)}
+              className="absolute top-5 right-5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-lg p-1 transition"
+              aria-label="Cerrar ventana de confirmación"
+            >
+              ✕
+            </button>
+
+            {/* Ícono de advertencia */}
+            <div className="w-14 h-14 rounded-2xl bg-red-100 dark:bg-red-950/60 border border-red-300 dark:border-red-900/60 text-red-600 dark:text-red-400 flex items-center justify-center text-3xl mx-auto shadow-sm">
+              ⚠️
+            </div>
+
+            {/* Título y descripción */}
+            <div className="text-center space-y-1.5">
+              <h3 className="text-xl font-black text-slate-900 dark:text-white">
+                ¿Confirmar revocación de título?
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Esta acción registrará una revocación permanente en el Smart Contract de Stellar Soroban.
+              </p>
+            </div>
+
+            {/* Ficha técnica del título a revocar */}
+            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/60 space-y-2.5 text-xs">
+              <div className="flex justify-between items-center gap-2">
+                <span className="text-slate-500 dark:text-slate-400 font-semibold">Código único:</span>
+                <span className="font-mono font-bold text-slate-900 dark:text-white bg-slate-200/70 dark:bg-slate-700/70 px-2 py-0.5 rounded-md">
+                  {revokeTarget.code}
+                </span>
+              </div>
+              <div className="flex justify-between items-center gap-2">
+                <span className="text-slate-500 dark:text-slate-400 font-semibold">Huella SHA-256:</span>
+                <span className="font-mono text-slate-700 dark:text-slate-300 truncate max-w-[200px]" title={revokeTarget.hash}>
+                  {revokeTarget.hash.slice(0, 10)}…{revokeTarget.hash.slice(-8)}
+                </span>
+              </div>
+              {revokeTarget.issuedAt && (
+                <div className="flex justify-between items-center gap-2">
+                  <span className="text-slate-500 dark:text-slate-400 font-semibold">Fecha emisión:</span>
+                  <span className="text-slate-700 dark:text-slate-300">
+                    {formatDate(revokeTarget.issuedAt)}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Alerta de inmutabilidad */}
+            <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/70 text-amber-800 dark:text-amber-300 text-xs flex items-start gap-2.5">
+              <span className="text-base shrink-0">🛡️</span>
+              <p className="leading-relaxed">
+                <strong>Acción inmutable:</strong> Una vez firmada la transacción en Stellar Testnet, el diploma aparecerá como <strong>REVOCADO</strong> en cualquier verificación pública. Esta operación no se puede deshacer.
+              </p>
+            </div>
+
+            {/* Botones de acción */}
+            <div className="pt-2 flex flex-col-reverse sm:flex-row items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setRevokeTarget(null)}
+                className="w-full sm:w-1/2 px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs transition"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmRevoke}
+                className="w-full sm:w-1/2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-extrabold text-xs shadow-md shadow-red-500/20 transition flex items-center justify-center gap-1.5"
+              >
+                <span>🔥</span>
+                <span>Sí, Revocar</span>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
